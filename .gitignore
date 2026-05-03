@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.vscode/
+.idea/
+*.zip
+*.docx
+*.csv
+инструкция *.txt
+CODEX_*.md
+codex_*.md
+gitignor/

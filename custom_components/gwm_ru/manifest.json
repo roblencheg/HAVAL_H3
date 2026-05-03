@@ -1,0 +1,12 @@
+{
+  "domain": "gwm_ru",
+  "name": "GWM RU",
+  "codeowners": ["@roblencheg"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/roblencheg/HAVAL_H3",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/roblencheg/HAVAL_H3/issues",
+  "requirements": [],
+  "version": "0.4.3"
+}

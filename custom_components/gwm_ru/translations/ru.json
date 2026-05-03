@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "GWM RU",
+        "description": "Введите телефон и пароль от российского приложения GWM.",
+        "data": {
+          "phone": "Телефон",
+          "password": "Пароль",
+          "poll_interval": "Интервал опроса, секунд"
+        }
+      },
+      "reauth": {
+        "title": "GWM RU — повторная авторизация",
+        "description": "Истёк токен доступа. Введите пароль заново.",
+        "data": {
+          "phone": "Телефон",
+          "password": "Пароль"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Не удалось подключиться к GWM RU API",
+      "invalid_auth": "Неверный телефон или пароль",
+      "unknown": "Неизвестная ошибка"
+    },
+    "abort": {
+      "already_configured": "Этот аккаунт уже настроен",
+      "reauth_successful": "Повторная авторизация выполнена"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки GWM RU",
+        "data": {
+          "poll_interval": "Интервал опроса, секунд"
+        }
+      }
+    }
+  }
+}
