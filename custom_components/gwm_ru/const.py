@@ -96,6 +96,10 @@ ITEM_MAP: dict[str, ItemSensorDef] = {
     "2101007": ItemSensorDef("tire_rl_temp", "Температура шины задней левой", "°C", "mdi:thermometer", "temperature", "2101007", None),
     "2101004": ItemSensorDef("tire_rr_pressure", "Давление в шине задней правой", "атм", "mdi:car-tire-alert", "pressure", "2101004", Conversion.PRESSURE),
     "2101008": ItemSensorDef("tire_rr_temp", "Температура шины задней правой", "°C", "mdi:thermometer", "temperature", "2101008", None),
+    "2015002": ItemSensorDef("engine_coolant_temp", "Температура двигателя", "°C", "mdi:coolant-temperature", "temperature", "2015002", None),
+    "2201001": ItemSensorDef("ambient_temperature", "Температура воздуха", "°C", "mdi:thermometer", "temperature", "2201001", None),
+    "2014010": ItemSensorDef("battery_voltage", "Вольтаж аккумулятора", "V", "mdi:car-battery", "voltage", "2014010", None),
+    "2013021": ItemSensorDef("vehicle_battery", "Аккумулятор", None, "mdi:car-battery", None, "2013021", None),
 }
 
 EXTRA_SENSORS: dict[str, ExtraSensorDef] = {

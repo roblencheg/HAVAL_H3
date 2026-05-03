@@ -177,3 +177,39 @@ rear_defrost_off:
       selector:
         text:
           type: password
+
+steering_wheel_heat_on:
+  name: "Включить обогрев руля"
+  description: "Включить обогрев руля автомобиля"
+  fields:
+    operation_time:
+      name: "Время работы"
+      description: "Время работы обогрева руля в минутах"
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 30
+          step: 1
+          mode: box
+          unit_of_measurement: "мин"
+    security_pin:
+      name: "PIN-код безопасности"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, поле можно не заполнять."
+      required: false
+      selector:
+        text:
+          type: password
+
+steering_wheel_heat_off:
+  name: "Выключить обогрев руля"
+  description: "Выключить обогрев руля автомобиля"
+  fields:
+    security_pin:
+      name: "PIN-код безопасности"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
+      required: false
+      selector:
+        text:
+          type: password

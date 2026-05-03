@@ -138,4 +138,30 @@ COMMANDS = {
             }
         },
     },
+    "steering_wheel_heat_on": {
+        "key": "steering_wheel_heat_on",
+        "name": "Включить обогрев руля",
+        "expected_remote_type": "0x19",
+        "risk": "medium",
+        "icon": "mdi:steering",
+        "instructions": {
+            "0x19": {
+                "switchOrder": "1",
+                "operationTime": "10",
+            }
+        },
+    },
+    "steering_wheel_heat_off": {
+        "key": "steering_wheel_heat_off",
+        "name": "Выключить обогрев руля",
+        "expected_remote_type": "0x19",
+        "risk": "medium",
+        "icon": "mdi:steering",
+        "instructions": {
+            "0x19": {
+                "switchOrder": "2",
+                "operationTime": "0",
+            }
+        },
+    },
 }
