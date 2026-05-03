@@ -195,6 +195,10 @@ class GwmRuOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                     vol.Optional(CLEAR_SECURITY_PIN, default=False): bool,
                 }
             ),
+            data_descriptions={
+                CONF_SECURITY_PIN: "PIN-код из личного кабинета GWM, 6 цифр",
+                CONF_ENABLE_REMOTE_CONTROLS: "Вы самостоятельно отвечаете за безопасность и контроль доступа к Home Assistant",
+            },
             description_placeholders={
                 "pin_status": "сохранён" if has_pin else "не задан",
             },

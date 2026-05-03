@@ -8,7 +8,7 @@
           "phone": "Телефон",
           "password": "Пароль",
           "poll_interval": "Интервал опроса, секунд",
-          "security_pin": "PIN-код безопасности (опционально)"
+          "security_pin": "ПИН из приложения"
         }
       },
       "reauth": {
@@ -37,10 +37,10 @@
         "description": "PIN-код: {pin_status}",
         "data": {
           "poll_interval": "Интервал опроса, секунд",
-          "enable_remote_controls": "Включить удалённые команды",
+          "enable_remote_controls": "Включить удаленное управление",
           "command_cooldown": "Задержка между командами, секунд",
-          "security_pin": "PIN-код безопасности",
-          "clear_security_pin": "Удалить сохранённый PIN-код"
+          "security_pin": "ПИН из приложения",
+          "clear_security_pin": "Удалить сохранённый ПИН"
         }
       }
     }

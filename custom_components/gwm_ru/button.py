@@ -31,7 +31,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.extend(
             GwmRuCommandButton(coordinator, cmd)
             for cmd in COMMANDS.values()
-            if cmd["risk"] == "low"
         )
 
     async_add_entities(entities)
