@@ -110,9 +110,13 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
             instructions["0x0B"]["defrost"]["operationTime"] = str(op_time)
 
         security_pin = _get_security_pin(call)
+        if not security_pin:
+            raise HomeAssistantError(
+                "Security PIN is required. Add it in GWM RU integration settings or pass security_pin in service data."
+            )
         coordinator._last_command_time = time.time()
         await coordinator.client.async_send_t5_command(
-            vin, instructions, cmd["expected_remote_type"], security_pin=security_pin
+            vin, instructions, cmd["expected_remote_type"], security_pin=str(security_pin)
         )
         await coordinator.async_request_refresh()
 

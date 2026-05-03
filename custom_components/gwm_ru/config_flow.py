@@ -25,18 +25,23 @@ from .const import (
     CONF_SECURITY_PIN,
     DEFAULT_COUNTRY,
     DEFAULT_COUNTRY_CODE,
+    DEFAULT_COMMAND_COOLDOWN,
     DEFAULT_ENABLE_REMOTE_CONTROLS,
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
 )
 from .helpers import normalize_phone
 
+CLEAR_SECURITY_PIN = "clear_security_pin"
+
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_PHONE): str,
         vol.Required(CONF_PASSWORD): str,
         vol.Optional(CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL): int,
-        vol.Optional(CONF_SECURITY_PIN, default=""): str,
+        vol.Optional(CONF_SECURITY_PIN): selector.TextSelector(
+            selector.TextSelectorConfig(type="password"),
+        ),
     }
 )
 
@@ -78,6 +83,12 @@ class GwmRuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 await self.async_set_unique_id(info["phone"])
                 self._abort_if_unique_id_configured()
+                options = {
+                    CONF_POLL_INTERVAL: user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+                }
+                security_pin = user_input.get(CONF_SECURITY_PIN)
+                if security_pin:
+                    options[CONF_SECURITY_PIN] = security_pin
                 return self.async_create_entry(
                     title=info["title"],
                     data={
@@ -87,10 +98,7 @@ class GwmRuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_COUNTRY_CODE: DEFAULT_COUNTRY_CODE,
                         CONF_DEVICE_ID: info["device_id"],
                     },
-                    options={
-                        CONF_POLL_INTERVAL: user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
-                        CONF_SECURITY_PIN: user_input.get(CONF_SECURITY_PIN, ""),
-                    },
+                    options=options,
                 )
 
         return self.async_show_form(
@@ -145,42 +153,49 @@ class GwmRuOptionsFlowHandler(config_entries.OptionsFlowWithReload):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Manage options."""
         if user_input is not None:
-            if user_input.get("clear_security_pin"):
-                user_input[CONF_SECURITY_PIN] = ""
-            return self.async_create_entry(title="", data=user_input)
+            options = dict(self.config_entry.options)
+            options[CONF_POLL_INTERVAL] = user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
+            options[CONF_ENABLE_REMOTE_CONTROLS] = user_input.get(
+                CONF_ENABLE_REMOTE_CONTROLS,
+                DEFAULT_ENABLE_REMOTE_CONTROLS,
+            )
+            options[CONF_COMMAND_COOLDOWN] = user_input.get(
+                CONF_COMMAND_COOLDOWN,
+                DEFAULT_COMMAND_COOLDOWN,
+            )
+
+            new_pin = user_input.get(CONF_SECURITY_PIN)
+            if new_pin:
+                options[CONF_SECURITY_PIN] = new_pin
+
+            if user_input.get(CLEAR_SECURITY_PIN):
+                options.pop(CONF_SECURITY_PIN, None)
+
+            return self.async_create_entry(title="", data=options)
 
         poll_interval = self.config_entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
         enable_remote = self.config_entry.options.get(
             CONF_ENABLE_REMOTE_CONTROLS, DEFAULT_ENABLE_REMOTE_CONTROLS
         )
-        security_pin = self.config_entry.options.get(CONF_SECURITY_PIN, "")
-        command_cooldown = self.config_entry.options.get(CONF_COMMAND_COOLDOWN, 30)
+        command_cooldown = self.config_entry.options.get(
+            CONF_COMMAND_COOLDOWN, DEFAULT_COMMAND_COOLDOWN
+        )
+        has_pin = bool(self.config_entry.options.get(CONF_SECURITY_PIN))
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(
-                        CONF_POLL_INTERVAL,
-                        default=poll_interval,
-                    ): int,
-                    vol.Optional(
-                        CONF_ENABLE_REMOTE_CONTROLS,
-                        default=enable_remote,
-                    ): bool,
-                    vol.Optional(
-                        CONF_COMMAND_COOLDOWN,
-                        default=command_cooldown,
-                    ): int,
-                    vol.Optional(
-                        CONF_SECURITY_PIN,
-                        default=security_pin,
-                    ): selector.TextSelector(
+                    vol.Optional(CONF_POLL_INTERVAL, default=poll_interval): int,
+                    vol.Optional(CONF_ENABLE_REMOTE_CONTROLS, default=enable_remote): bool,
+                    vol.Optional(CONF_COMMAND_COOLDOWN, default=command_cooldown): int,
+                    vol.Optional(CONF_SECURITY_PIN): selector.TextSelector(
                         selector.TextSelectorConfig(type="password"),
                     ),
-                    vol.Optional(
-                        "clear_security_pin",
-                        default=False,
-                    ): bool,
+                    vol.Optional(CLEAR_SECURITY_PIN, default=False): bool,
                 }
             ),
+            description_placeholders={
+                "pin_status": "сохранён" if has_pin else "не задан",
+            },
         )
