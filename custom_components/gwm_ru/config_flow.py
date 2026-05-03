@@ -40,7 +40,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): str,
         vol.Optional(CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL): int,
         vol.Optional(CONF_SECURITY_PIN): selector.TextSelector(
-            selector.TextSelectorConfig(type="password"),
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD),
         ),
     }
 )
@@ -190,15 +190,11 @@ class GwmRuOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                     vol.Optional(CONF_ENABLE_REMOTE_CONTROLS, default=enable_remote): bool,
                     vol.Optional(CONF_COMMAND_COOLDOWN, default=command_cooldown): int,
                     vol.Optional(CONF_SECURITY_PIN): selector.TextSelector(
-                        selector.TextSelectorConfig(type="password"),
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD),
                     ),
                     vol.Optional(CLEAR_SECURITY_PIN, default=False): bool,
                 }
             ),
-            data_descriptions={
-                CONF_SECURITY_PIN: "PIN-код из личного кабинета GWM, 6 цифр",
-                CONF_ENABLE_REMOTE_CONTROLS: "Вы самостоятельно отвечаете за безопасность и контроль доступа к Home Assistant",
-            },
             description_placeholders={
                 "pin_status": "сохранён" if has_pin else "не задан",
             },

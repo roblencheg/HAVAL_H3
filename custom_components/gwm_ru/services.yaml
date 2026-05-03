@@ -2,233 +2,150 @@ flash_lights:
   name: "Моргнуть фарами"
   description: "Включить аварийную сигнализацию на 3 секунды"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: false
-      default: false
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 horn:
   name: "Подать звуковой сигнал"
   description: "Подать звуковой сигнал"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: false
-      default: false
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 flash_and_horn:
   name: "Фары + сигнал"
   description: "Включить аварийную сигнализацию и подать звуковой сигнал"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: false
-      default: false
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 close_windows:
   name: "Закрыть окна"
   description: "Закрыть все окна автомобиля"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: false
-      default: false
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 close_sunroof:
   name: "Закрыть люк"
   description: "Закрыть люк автомобиля"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: false
-      default: false
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 unlock_vehicle:
   name: "Открыть двери"
   description: "Разблокировать все двери автомобиля"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 lock_vehicle:
   name: "Закрыть двери"
   description: "Заблокировать все двери автомобиля"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 open_trunk:
   name: "Открыть багажник"
   description: "Дистанционно открыть багажник"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 close_trunk:
   name: "Закрыть багажник"
   description: "Дистанционно закрыть багажник"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 open_sunroof:
   name: "Открыть люк"
   description: "Открыть люк автомобиля"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 open_sunshade:
   name: "Открыть шторку люка"
   description: "Открыть шторку люка"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 close_sunshade:
   name: "Закрыть шторку люка"
   description: "Закрыть шторку люка"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 rear_defrost_on:
   name: "Включить обогрев заднего стекла"
   description: "Включить обогрев заднего стекла с таймером работы"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     operation_time:
       name: "Время работы (минуты)"
       description: "Время работы обогрева в минутах (по умолчанию 10)"
@@ -243,26 +160,20 @@ rear_defrost_on:
           unit_of_measurement: "мин"
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password
 
 rear_defrost_off:
   name: "Выключить обогрев заднего стекла"
   description: "Выключить обогрев заднего стекла"
   fields:
-    confirm:
-      name: "Подтверждение"
-      description: "Подтвердите выполнение команды"
-      required: true
-      selector:
-        boolean: {}
     security_pin:
       name: "PIN-код безопасности"
-      description: "PIN-код безопасности (если не сохранён в настройках интеграции)"
+      description: "PIN-код безопасности, установленный в официальном приложении GWM. Если PIN сохранён в настройках интеграции, это поле можно не заполнять."
       required: false
-      default: ""
       selector:
         text:
+          type: password

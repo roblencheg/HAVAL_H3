@@ -91,10 +91,7 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
         cmd = COMMANDS.get(call.service)
         if cmd is None:
             raise HomeAssistantError(f"Unknown command: {call.service}")
-        if cmd["requires_confirm"] and not call.data.get("confirm", False):
-            raise HomeAssistantError(
-                f"Command '{cmd['name']}' requires confirmation. Set confirm=true to proceed."
-            )
+
         now = time.time()
         elapsed = now - coordinator._last_command_time
         if elapsed < coordinator.command_cooldown:

@@ -60,6 +60,7 @@ class GwmRuCommandButton(GwmRuEntity, ButtonEntity):
         self._attr_unique_id = f"{coordinator.entry_id}_cmd_{command['key']}"
         self._attr_name = command["name"]
         self._attr_icon = command["icon"]
+        self._attr_entity_registry_enabled_default = True
 
     async def async_press(self) -> None:
         """Execute the command via service."""
