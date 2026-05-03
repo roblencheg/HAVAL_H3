@@ -178,7 +178,14 @@ class GwmRuApiClient:
             "type": 3,
             "compoundCommandTemplateId": None,
         }
-        _LOGGER.debug("Sending T5 command: seqNo=%s type=3", seq_no)
+        _LOGGER.debug(
+            "Sending T5 command: seqNo=%s expectedRemoteType=%s instructionKeys=%s type=%s hasSecurityPassword=%s",
+            seq_no,
+            expected_remote_type,
+            list(instructions.keys()),
+            3,
+            bool(security_password),
+        )
         send_payload = await self._request(
             "POST",
             ENDPOINT_T5_SEND_CMD,
@@ -188,6 +195,12 @@ class GwmRuApiClient:
         data = send_payload.get("data") or {}
         if isinstance(data, dict):
             seq_no = data.get("seqNo") or seq_no
+
+        _LOGGER.debug(
+            "T5 send accepted: seqNo=%s expectedRemoteType=%s",
+            seq_no,
+            expected_remote_type,
+        )
 
         await asyncio.sleep(2)
         return await self.async_poll_t5_result(vin, seq_no, expected_remote_type)
@@ -201,7 +214,13 @@ class GwmRuApiClient:
         interval: int = 1,
     ) -> dict[str, Any]:
         """Poll for T5 remote command result."""
+        success_codes = {"0", "6"}
+        pending_codes = {"1000", "2000"}
+
         deadline = time.time() + timeout
+        last_error_code: str | None = None
+        last_error_msg: str | None = None
+
         while time.time() < deadline:
             await asyncio.sleep(interval)
             try:
@@ -213,23 +232,66 @@ class GwmRuApiClient:
                 )
             except GwmRuApiError:
                 continue
+
             data = payload.get("data")
             if not isinstance(data, list):
                 continue
-            for bean in data:
-                if bean.get("remoteType") == expected_remote_type:
-                    result_code = str(bean.get("resultCode", ""))
-                    result_msg = str(bean.get("resultMsg") or "")
-                    if result_code in {"0", "6"}:
-                        _LOGGER.debug("T5 command succeeded: code=%s msg=%s", result_code, result_msg)
-                        return bean
-                    if result_code in {"1000", "2000"}:
-                        _LOGGER.debug("T5 command pending: code=%s", result_code)
-                        break
-                    _LOGGER.warning("T5 command failed: code=%s msg=%s", result_code, result_msg)
-                    raise HomeAssistantError(
-                        f"Command failed: {result_msg}" if result_msg else f"Error code {result_code}"
+
+            matched = [
+                bean
+                for bean in data
+                if str(bean.get("remoteType") or "") == expected_remote_type
+            ]
+
+            if not matched:
+                continue
+
+            # 1. Success has priority over any errors in the list.
+            for bean in matched:
+                result_code = str(bean.get("resultCode", ""))
+                result_msg = str(bean.get("resultMsg") or "")
+                if result_code in success_codes:
+                    _LOGGER.debug(
+                        "T5 command succeeded: remoteType=%s code=%s msg=%s",
+                        expected_remote_type,
+                        result_code,
+                        result_msg,
                     )
+                    return bean
+
+            # 2. Pending means the command is still executing.
+            if any(str(bean.get("resultCode", "")) in pending_codes for bean in matched):
+                _LOGGER.debug("T5 command pending: remoteType=%s", expected_remote_type)
+                continue
+
+            # 3. resultCode=11 often comes as an intermediate/general T5 error.
+            #    Do not fail immediately. Continue polling until timeout, but save the last error.
+            for bean in matched:
+                result_code = str(bean.get("resultCode", ""))
+                result_msg = str(bean.get("resultMsg") or "")
+                last_error_code = result_code
+                last_error_msg = result_msg
+
+            _LOGGER.debug(
+                "T5 command non-final error while polling: remoteType=%s code=%s msg=%s",
+                expected_remote_type,
+                last_error_code,
+                last_error_msg,
+            )
+
+        if last_error_code:
+            _LOGGER.warning(
+                "T5 command failed after polling: remoteType=%s code=%s msg=%s",
+                expected_remote_type,
+                last_error_code,
+                last_error_msg,
+            )
+            raise HomeAssistantError(
+                f"Command failed: {last_error_msg}"
+                if last_error_msg
+                else f"Error code {last_error_code}"
+            )
+
         raise HomeAssistantError("Command timed out after 300 seconds")
 
     async def _ensure_login(self) -> None:

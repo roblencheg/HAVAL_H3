@@ -65,6 +65,7 @@ COMMANDS = {
         "icon": "mdi:car-door",
         "instructions": {
             "0x08": {
+                "switchOrder": "2",
                 "window": {
                     "leftFront": 0,
                     "leftBack": 0,
@@ -80,7 +81,7 @@ COMMANDS = {
         "expected_remote_type": "0x08",
         "risk": "low",
         "icon": "mdi:car-door",
-        "instructions": {"0x08": {"window": {"skyLight": 0}}},
+        "instructions": {"0x08": {"switchOrder": "2", "window": {"skyLight": 0}}},
     },
     "open_sunroof": {
         "key": "open_sunroof",
@@ -88,7 +89,7 @@ COMMANDS = {
         "expected_remote_type": "0x08",
         "risk": "medium",
         "icon": "mdi:car-door",
-        "instructions": {"0x08": {"window": {"skyLight": 10}}},
+        "instructions": {"0x08": {"switchOrder": "1", "window": {"skyLight": 10}}},
     },
     "open_sunshade": {
         "key": "open_sunshade",
