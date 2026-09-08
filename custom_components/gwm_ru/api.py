@@ -16,29 +16,8 @@ from urllib.parse import parse_qs, quote_plus, urlencode, urlparse
 from aiohttp import ClientError, ClientSession
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 
-from .const import (
-    APP_ID,
-    APP_KEY,
-    APP_SEC,
-    APP_VERSION,
-    AUTH_PREFIX,
-    BASE_URL,
-    BRAND,
-    COUNTRY,
-    ENDPOINT_CHECK_SECURITY_PASSWORD,
-    ENDPOINT_FIND_STATUS,
-    ENDPOINT_LAST_STATUS,
-    ENDPOINT_LOGIN,
-    ENDPOINT_T5_CTRL_RESULT,
-    ENDPOINT_T5_SEND_CMD,
-    ENDPOINT_VEHICLES,
-    ENTERPRISE_ID,
-    LANGUAGE,
-    REGION_CODE,
-    SYSTEM_TYPE,
-    TERMINAL,
-)
-from .helpers import normalize_phone, redact_vehicle, build_state
+from .const import APP_ID, APP_KEY, APP_SEC, APP_VERSION, AUTH_PREFIX, BASE_URL, BRAND, COUNTRY, ENDPOINT_CHECK_SECURITY_PASSWORD, ENDPOINT_FIND_STATUS, ENDPOINT_LAST_STATUS, ENDPOINT_LOGIN, ENDPOINT_T5_CTRL_RESULT, ENDPOINT_T5_SEND_CMD, ENDPOINT_VEHICLES, ENTERPRISE_ID, LANGUAGE, REGION_CODE, SYSTEM_TYPE, TERMINAL
+from .helpers import build_state, normalize_phone, redact_vehicle
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,15 +29,7 @@ class GwmRuApiError(HomeAssistantError):
 class GwmRuApiClient:
     """Small async client for the unofficial GWM RU API."""
 
-    def __init__(
-        self,
-        session: ClientSession,
-        phone: str,
-        password: str,
-        device_id: str,
-        country: str,
-        country_code: str,
-    ) -> None:
+    def __init__(self, session: ClientSession, phone: str, password: str, device_id: str, country: str, country_code: str) -> None:
         self._session = session
         self._phone = normalize_phone(phone)
         self._password = password
@@ -69,23 +40,8 @@ class GwmRuApiClient:
         self._login_lock = asyncio.Lock()
 
     async def async_login(self) -> None:
-        """Log in and store the access token in memory."""
         async with self._login_lock:
-            body = {
-                "account": self._phone,
-                "password": self._password,
-                "agreement": [1, 2, 18, 19],
-                "smsCode": None,
-                "msgType": None,
-                "model": "Home Assistant",
-                "type": 1,
-                "deviceId": self._device_id,
-                "appType": 0,
-                "pushToken": "",
-                "country": self._country,
-                "countryCode": self._country_code,
-                "isEncrypt": False,
-            }
+            body = {"account": self._phone, "password": self._password, "agreement": [1, 2, 18, 19], "smsCode": None, "msgType": None, "model": "Home Assistant", "type": 1, "deviceId": self._device_id, "appType": 0, "pushToken": "", "country": self._country, "countryCode": self._country_code, "isEncrypt": False}
             payload = await self._request("POST", ENDPOINT_LOGIN, body=body, with_token=False)
             data = payload.get("data") or {}
             token = data.get("accessToken")
@@ -94,204 +50,98 @@ class GwmRuApiClient:
             self._access_token = str(token)
 
     async def async_update(self) -> dict[str, Any]:
-        """Fetch vehicle list and current status."""
+        """Fetch all vehicles and keep first-vehicle fields for backward compatibility."""
         await self._ensure_login()
-        vehicles = await self._get_vehicles()
-        if not vehicles:
+        cars = await self._get_vehicles()
+        if not cars:
             raise GwmRuApiError("No vehicles returned by GWM RU account")
+        vehicles: list[dict[str, Any]] = []
+        for car in cars:
+            try:
+                vehicles.append(await self._build_vehicle_snapshot(car))
+            except Exception as err:
+                _LOGGER.warning("Failed to refresh one GWM vehicle: %s", err)
+        if not vehicles:
+            raise GwmRuApiError("No GWM vehicles could be refreshed")
+        primary = vehicles[0]
+        return {"vin": primary["vin"], "vehicle": primary["vehicle"], "vehicle_name": primary["vehicle_name"], "state": primary["state"], "location": primary["location"], "vehicles": vehicles}
 
-        car = vehicles[0]
+    async def _build_vehicle_snapshot(self, car: dict[str, Any]) -> dict[str, Any]:
         vin = car.get("vin")
         imsi = car.get("imsi")
         vehicle_id = car.get("vehicleId")
         if not vin:
             raise GwmRuApiError("Vehicle does not contain VIN")
-
         status = await self._get_last_status(str(vin))
         tbox: dict[str, Any] = {}
         if imsi and vehicle_id:
             tbox = await self._find_status(str(imsi), str(vehicle_id), str(vin))
-
         state = build_state(status, tbox)
-        location = {
-            "latitude": status.get("latitude"),
-            "longitude": status.get("longitude"),
-            "gps_accuracy": 50,
-        }
-        vehicle_name = car.get("vehicleName") or car.get("modelName") or "GWM vehicle"
-
+        location = {"latitude": status.get("latitude"), "longitude": status.get("longitude"), "gps_accuracy": 50}
         car_data = redact_vehicle(car)
         model_name = car_data.get("modelName") or ""
         name_parts = model_name.split(maxsplit=1)
         state["brand"] = car_data.get("brandName") or (name_parts[0] if name_parts else None)
         state["model"] = model_name or car_data.get("model")
         state["color"] = car_data.get("color")
-
-        return {
-            "vin": vin,
-            "vehicle": car_data,
-            "vehicle_name": vehicle_name,
-            "state": state,
-            "location": location,
+        capabilities = {
+            "remote_commands": True,
+            "engine": state.get("engine_state") is not None,
+            "climate": state.get("climate_state") is not None or state.get("ambient_temperature") is not None,
+            "lock": state.get("lock_state") is not None,
+            "trunk": state.get("trunk_state") is not None,
+            "windows": any(state.get(key) is not None for key in ("window_fl_state", "window_fr_state", "window_rl_state", "window_rr_state")),
+            "rear_defroster": state.get("rear_defroster_state") is not None,
+            "steering_wheel_heater": state.get("steering_wheel_heater_state") is not None,
         }
+        return {"vin": str(vin), "display_vin": car.get("showedVin") or "", "vehicle": car_data, "vehicle_name": car.get("vehicleName") or car.get("modelName") or "GWM vehicle", "state": state, "location": location, "capabilities": capabilities}
 
-    async def async_check_security_password(
-        self,
-        security_pin: str,
-        check_type: int = 3,
-    ) -> str:
-        """Check GWM security PIN and return MD5 hash for command payload."""
+    async def async_check_security_password(self, security_pin: str, check_type: int = 3) -> str:
         await self._ensure_login()
         pin_md5 = hashlib.md5(security_pin.encode("utf-8")).hexdigest()
-        body = {
-            "type": str(check_type),
-            "securityPassword": pin_md5,
-        }
-        await self._request(
-            "POST",
-            ENDPOINT_CHECK_SECURITY_PASSWORD,
-            body=body,
-        )
+        await self._request("POST", ENDPOINT_CHECK_SECURITY_PASSWORD, body={"type": str(check_type), "securityPassword": pin_md5})
         return pin_md5
 
-    async def async_send_t5_command(
-        self,
-        vin: str,
-        instructions: dict,
-        expected_remote_type: str,
-        security_pin: str | None = None,
-    ) -> dict[str, Any]:
-        """Send a T5 remote command and poll for result."""
+    async def async_send_t5_command(self, vin: str, instructions: dict, expected_remote_type: str, security_pin: str | None = None) -> dict[str, Any]:
         await self._ensure_login()
-
-        security_password = None
-        if security_pin:
-            security_password = await self.async_check_security_password(security_pin, 3)
-
+        security_password = await self.async_check_security_password(security_pin, 3) if security_pin else None
         seq_no = _make_t5_seq_no()
-        body = {
-            "vin": vin,
-            "seqNo": seq_no,
-            "remoteType": "0",
-            "instructions": instructions,
-            "securityPassword": security_password,
-            "type": 3,
-            "compoundCommandTemplateId": None,
-        }
-        _LOGGER.debug(
-            "Sending T5 command: seqNo=%s expectedRemoteType=%s instructionKeys=%s type=%s hasSecurityPassword=%s",
-            seq_no,
-            expected_remote_type,
-            list(instructions.keys()),
-            3,
-            bool(security_password),
-        )
-        send_payload = await self._request(
-            "POST",
-            ENDPOINT_T5_SEND_CMD,
-            body=body,
-            vin_header=vin,
-        )
+        body = {"vin": vin, "seqNo": seq_no, "remoteType": "0", "instructions": instructions, "securityPassword": security_password, "type": 3, "compoundCommandTemplateId": None}
+        send_payload = await self._request("POST", ENDPOINT_T5_SEND_CMD, body=body, vin_header=vin)
         data = send_payload.get("data") or {}
         if isinstance(data, dict):
             seq_no = data.get("seqNo") or seq_no
-
-        _LOGGER.debug(
-            "T5 send accepted: seqNo=%s expectedRemoteType=%s",
-            seq_no,
-            expected_remote_type,
-        )
-
         await asyncio.sleep(2)
         return await self.async_poll_t5_result(vin, seq_no, expected_remote_type)
 
-    async def async_poll_t5_result(
-        self,
-        vin: str,
-        seq_no: str,
-        expected_remote_type: str,
-        timeout: int = 300,
-        interval: int = 1,
-    ) -> dict[str, Any]:
-        """Poll for T5 remote command result."""
+    async def async_poll_t5_result(self, vin: str, seq_no: str, expected_remote_type: str, timeout: int = 300, interval: int = 1) -> dict[str, Any]:
         success_codes = {"0", "6"}
         pending_codes = {"1000", "2000"}
-
         deadline = time.time() + timeout
         last_error_code: str | None = None
         last_error_msg: str | None = None
-
         while time.time() < deadline:
             await asyncio.sleep(interval)
             try:
-                payload = await self._request(
-                    "GET",
-                    ENDPOINT_T5_CTRL_RESULT,
-                    params={"seqNo": seq_no},
-                    vin_header=vin,
-                )
+                payload = await self._request("GET", ENDPOINT_T5_CTRL_RESULT, params={"seqNo": seq_no}, vin_header=vin)
             except GwmRuApiError:
                 continue
-
             data = payload.get("data")
             if not isinstance(data, list):
                 continue
-
-            matched = [
-                bean
-                for bean in data
-                if str(bean.get("remoteType") or "") == expected_remote_type
-            ]
-
+            matched = [bean for bean in data if str(bean.get("remoteType") or "") == expected_remote_type]
             if not matched:
                 continue
-
-            # 1. Success has priority over any errors in the list.
             for bean in matched:
-                result_code = str(bean.get("resultCode", ""))
-                result_msg = str(bean.get("resultMsg") or "")
-                if result_code in success_codes:
-                    _LOGGER.debug(
-                        "T5 command succeeded: remoteType=%s code=%s msg=%s",
-                        expected_remote_type,
-                        result_code,
-                        result_msg,
-                    )
+                if str(bean.get("resultCode", "")) in success_codes:
                     return bean
-
-            # 2. Pending means the command is still executing.
             if any(str(bean.get("resultCode", "")) in pending_codes for bean in matched):
-                _LOGGER.debug("T5 command pending: remoteType=%s", expected_remote_type)
                 continue
-
-            # 3. resultCode=11 often comes as an intermediate/general T5 error.
-            #    Do not fail immediately. Continue polling until timeout, but save the last error.
             for bean in matched:
-                result_code = str(bean.get("resultCode", ""))
-                result_msg = str(bean.get("resultMsg") or "")
-                last_error_code = result_code
-                last_error_msg = result_msg
-
-            _LOGGER.debug(
-                "T5 command non-final error while polling: remoteType=%s code=%s msg=%s",
-                expected_remote_type,
-                last_error_code,
-                last_error_msg,
-            )
-
+                last_error_code = str(bean.get("resultCode", ""))
+                last_error_msg = str(bean.get("resultMsg") or "")
         if last_error_code:
-            _LOGGER.warning(
-                "T5 command failed after polling: remoteType=%s code=%s msg=%s",
-                expected_remote_type,
-                last_error_code,
-                last_error_msg,
-            )
-            raise HomeAssistantError(
-                f"Command failed: {last_error_msg}"
-                if last_error_msg
-                else f"Error code {last_error_code}"
-            )
-
+            raise HomeAssistantError(f"Command failed: {last_error_msg}" if last_error_msg else f"Error code {last_error_code}")
         raise HomeAssistantError("Command timed out after 300 seconds")
 
     async def _ensure_login(self) -> None:
@@ -304,110 +154,45 @@ class GwmRuApiClient:
         return data if isinstance(data, list) else []
 
     async def _get_last_status(self, vin: str) -> dict[str, Any]:
-        payload = await self._request(
-            "GET",
-            ENDPOINT_LAST_STATUS,
-            params={"vin": vin, "seqNo": "", "modelId": ""},
-            vin_header=vin,
-        )
+        payload = await self._request("GET", ENDPOINT_LAST_STATUS, params={"vin": vin, "seqNo": "", "modelId": ""}, vin_header=vin)
         data = payload.get("data") or {}
         return data if isinstance(data, dict) else {}
 
     async def _find_status(self, imsi: str, vehicle_id: str, vin: str) -> dict[str, Any]:
-        payload = await self._request(
-            "GET",
-            ENDPOINT_FIND_STATUS,
-            params={"imsi": imsi, "vehicleId": vehicle_id},
-            vin_header=vin,
-        )
+        payload = await self._request("GET", ENDPOINT_FIND_STATUS, params={"imsi": imsi, "vehicleId": vehicle_id}, vin_header=vin)
         data = payload.get("data") or {}
         return data if isinstance(data, dict) else {}
 
-    async def _request(
-        self,
-        method: str,
-        path: str,
-        *,
-        params: dict[str, str] | None = None,
-        body: dict[str, Any] | None = None,
-        with_token: bool = True,
-        vin_header: str | None = None,
-        retry_auth: bool = True,
-    ) -> dict[str, Any]:
+    async def _request(self, method: str, path: str, *, params: dict[str, str] | None = None, body: dict[str, Any] | None = None, with_token: bool = True, vin_header: str | None = None, retry_auth: bool = True) -> dict[str, Any]:
         params = params or {}
         body_json = json.dumps(body, ensure_ascii=False, separators=(",", ":")) if body is not None else ""
         query = urlencode(params, doseq=False)
         url = BASE_URL + path + ("?" + query if query else "")
         headers = self._headers(method, path, url, body_json, with_token, vin_header)
-
         try:
-            async with self._session.request(
-                method,
-                url,
-                headers=headers,
-                data=body_json.encode("utf-8") if body is not None else None,
-                timeout=30,
-            ) as resp:
+            async with self._session.request(method, url, headers=headers, data=body_json.encode("utf-8") if body is not None else None, timeout=30) as resp:
                 text = await resp.text()
         except ClientError as err:
             raise GwmRuApiError(f"Cannot connect to GWM RU: {err}") from err
-
         try:
             payload = json.loads(text)
         except json.JSONDecodeError as err:
             raise GwmRuApiError(f"Invalid GWM RU response: {text[:200]}") from err
-
         code = str(payload.get("code"))
         if code == "000000":
             return payload
-
         if with_token and retry_auth and code in {"401", "401000", "308001", "308002", "308003"}:
-            _LOGGER.debug("GWM RU token expired, refreshing session")
             self._access_token = None
             await self.async_login()
-            return await self._request(
-                method,
-                path,
-                params=params,
-                body=body,
-                with_token=with_token,
-                vin_header=vin_header,
-                retry_auth=False,
-            )
-
+            return await self._request(method, path, params=params, body=body, with_token=with_token, vin_header=vin_header, retry_auth=False)
         description = str(payload.get("description") or payload.get("message") or code)
-        _LOGGER.debug("GWM RU error: code=%s description=%s path=%s", code, description, path)
         if not with_token:
             raise ConfigEntryAuthFailed(description)
         raise GwmRuApiError(description)
 
     def _headers(self, method: str, path: str, url: str, body_json: str, with_token: bool, vin: str | None) -> dict[str, str]:
         timestamp, nonce, sign = sign_request(method, path, url, body_json)
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json; charset=UTF-8",
-            f"{AUTH_PREFIX}-auth-appkey": APP_KEY,
-            f"{AUTH_PREFIX}-auth-timestamp": timestamp,
-            f"{AUTH_PREFIX}-auth-sign": sign,
-            f"{AUTH_PREFIX}-auth-nonce": nonce,
-            "ip": local_ip(),
-            "rs": "2",
-            "appId": APP_ID,
-            "brand": BRAND,
-            "terminal": TERMINAL,
-            "enterpriseId": ENTERPRISE_ID,
-            "systemType": SYSTEM_TYPE,
-            "cVer": APP_VERSION,
-            "timeZone": "GMT+03:00",
-            "channel": "APP",
-            "language": LANGUAGE,
-            "regionCode": REGION_CODE,
-            "country": COUNTRY,
-            "communityBrand": "1",
-            "deviceId": self._device_id,
-            "iccid": self._device_id,
-            "User-Agent": "GWM",
-        }
+        headers = {"Accept": "application/json", "Content-Type": "application/json; charset=UTF-8", f"{AUTH_PREFIX}-auth-appkey": APP_KEY, f"{AUTH_PREFIX}-auth-timestamp": timestamp, f"{AUTH_PREFIX}-auth-sign": sign, f"{AUTH_PREFIX}-auth-nonce": nonce, "ip": local_ip(), "rs": "2", "appId": APP_ID, "brand": BRAND, "terminal": TERMINAL, "enterpriseId": ENTERPRISE_ID, "systemType": SYSTEM_TYPE, "cVer": APP_VERSION, "timeZone": "GMT+03:00", "channel": "APP", "language": LANGUAGE, "regionCode": REGION_CODE, "country": COUNTRY, "communityBrand": "1", "deviceId": self._device_id, "iccid": self._device_id, "User-Agent": "GWM"}
         if with_token and self._access_token:
             headers["accessToken"] = self._access_token
         if vin:
@@ -418,11 +203,7 @@ class GwmRuApiClient:
 def sign_request(method: str, path: str, full_url: str, body_json: str = "") -> tuple[str, str, str]:
     timestamp = str(int(time.time() * 1000))
     nonce = hashlib.md5(str(time.time_ns()).encode("utf-8")).hexdigest()[:16]
-    auth_string = (
-        f"{AUTH_PREFIX}-auth-appkey:{APP_KEY}"
-        f"{AUTH_PREFIX}-auth-nonce:{nonce}"
-        f"{AUTH_PREFIX}-auth-timestamp:{timestamp}"
-    )
+    auth_string = f"{AUTH_PREFIX}-auth-appkey:{APP_KEY}{AUTH_PREFIX}-auth-nonce:{nonce}{AUTH_PREFIX}-auth-timestamp:{timestamp}"
     if method.upper() == "GET":
         params = format_get_parameter(full_url)
     elif method.upper() == "POST":
@@ -456,5 +237,4 @@ def local_ip() -> str:
 
 
 def _make_t5_seq_no() -> str:
-    """Generate a T5 sequence number."""
-    return uuid.uuid4().hex + "1234"
+    return f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"

@@ -5,9 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-
 DOMAIN = "gwm_ru"
-PLATFORMS = ["button", "sensor", "binary_sensor", "device_tracker"]
+PLATFORMS = ["button", "sensor", "binary_sensor", "device_tracker", "climate"]
 
 CONF_PHONE = "phone"
 CONF_COUNTRY = "country"
@@ -27,7 +26,6 @@ DEFAULT_ENABLE_DANGEROUS_CONTROLS = False
 DEFAULT_COMMAND_COOLDOWN = 30
 
 BASE_URL = "https://rus-h5-gateway.gwmcloud.com"
-
 AUTH_PREFIX = "gwm"
 APP_ID = "1"
 BRAND = "1"
@@ -38,8 +36,6 @@ APP_VERSION = "2.2.3"
 LANGUAGE = "ru"
 REGION_CODE = "RU"
 COUNTRY = "RU"
-
-# Extracted from the public Android APK. This is not a user secret, but do not log it.
 APP_KEY = "4694605273"
 APP_SEC = "e4e478c00f570e76a8993653a7b81d57"
 
@@ -50,20 +46,15 @@ ENDPOINT_FIND_STATUS = "/app-api/api/v1.0/vehicle/findStatus"
 ENDPOINT_T5_SEND_CMD = "/app-api/api/v1.0/vehicle/T5/sendCmd"
 ENDPOINT_T5_CTRL_RESULT = "/app-api/api/v1.0/vehicle/getRemoteCtrlResultT5"
 ENDPOINT_CHECK_SECURITY_PASSWORD = "/app-api/api/v1.0/userAuth/checkSecurityPassword"
-
 KPA_TO_ATM = 101.325
 
 
 class Conversion(Enum):
-    """Conversion type for item values."""
-
     PRESSURE = "pressure"
 
 
 @dataclass
 class SensorDefBase:
-    """Base sensor definition."""
-
     key: str
     name: str
     unit: str | None
@@ -73,15 +64,13 @@ class SensorDefBase:
 
 @dataclass
 class ItemSensorDef(SensorDefBase):
-    """Sensor definition for vehicle status items."""
-
     code: str
     convert: Conversion | None
 
 
 @dataclass
 class ExtraSensorDef(SensorDefBase):
-    """Sensor definition derived from vehicle metadata."""
+    pass
 
 
 ITEM_MAP: dict[str, ItemSensorDef] = {
@@ -112,4 +101,5 @@ EXTRA_SENSORS: dict[str, ExtraSensorDef] = {
     "vehicle_status": ExtraSensorDef("vehicle_status", "Статус автомобиля", None, "mdi:car-info", None),
     "engine_state": ExtraSensorDef("engine_state", "Состояние двигателя", None, "mdi:engine", None),
     "lock_state": ExtraSensorDef("lock_state", "Состояние замка", None, "mdi:car-door-lock", None),
+    "command_status": ExtraSensorDef("command_status", "Статус команды", None, "mdi:progress-clock", None),
 }

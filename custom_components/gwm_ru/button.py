@@ -15,55 +15,52 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import GwmRuCoordinator
-from .entity import GwmRuEntity
+from .entity import GwmRuEntity, setup_vehicle_entities
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
-    """Set up GWM RU button."""
     coordinator: GwmRuCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[ButtonEntity] = [GwmRuRefreshButton(coordinator)]
-
     enable = entry.options.get(CONF_ENABLE_REMOTE_CONTROLS, DEFAULT_ENABLE_REMOTE_CONTROLS)
-    has_pin = bool(
-        entry.options.get(CONF_SECURITY_PIN) or entry.data.get(CONF_SECURITY_PIN)
-    )
-    if enable and has_pin:
-        entities.extend(
-            GwmRuCommandButton(coordinator, cmd)
-            for cmd in COMMANDS.values()
-        )
+    has_pin = bool(entry.options.get(CONF_SECURITY_PIN) or entry.data.get(CONF_SECURITY_PIN))
 
-    async_add_entities(entities)
+    def entities_for_vehicle(vehicle):
+        vin = vehicle["vin"]
+        entities: list[ButtonEntity] = [GwmRuRefreshButton(coordinator, vin)]
+        if enable and has_pin:
+            entities.extend(
+                GwmRuCommandButton(coordinator, vin, cmd)
+                for cmd in COMMANDS.values()
+            )
+        return entities
+
+    setup_vehicle_entities(coordinator, async_add_entities, entities_for_vehicle)
 
 
 class GwmRuRefreshButton(GwmRuEntity, ButtonEntity):
-    """Button to refresh all GWM RU sensors."""
-
     _attr_name = "Обновить датчики"
     _attr_icon = "mdi:refresh"
 
-    def __init__(self, coordinator: GwmRuCoordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.entry_id}_refresh"
+    def __init__(self, coordinator: GwmRuCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin)
+        self._attr_unique_id = f"{coordinator.entity_prefix(vin)}_refresh"
 
     async def async_press(self) -> None:
-        """Trigger coordinator refresh."""
         await self.coordinator.async_request_refresh()
 
 
 class GwmRuCommandButton(GwmRuEntity, ButtonEntity):
-    """Button to send a remote command to the vehicle."""
-
-    def __init__(self, coordinator: GwmRuCoordinator, command: dict) -> None:
-        super().__init__(coordinator)
+    def __init__(self, coordinator: GwmRuCoordinator, vin: str, command: dict) -> None:
+        super().__init__(coordinator, vin)
         self._command = command
-        self._attr_unique_id = f"{coordinator.entry_id}_cmd_{command['key']}"
+        self._attr_unique_id = f"{coordinator.entity_prefix(vin)}_cmd_{command['key']}"
         self._attr_name = command["name"]
         self._attr_icon = command["icon"]
         self._attr_entity_registry_enabled_default = True
 
     async def async_press(self) -> None:
-        """Execute the command via service."""
         await self.coordinator.hass.services.async_call(
-            DOMAIN, self._command["key"], {}, blocking=True
+            DOMAIN,
+            self._command["key"],
+            {"vin": self.vin},
+            blocking=True,
         )

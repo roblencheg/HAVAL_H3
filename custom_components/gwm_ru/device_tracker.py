@@ -10,33 +10,34 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import GwmRuCoordinator
-from .entity import GwmRuEntity
+from .entity import GwmRuEntity, setup_vehicle_entities
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
-    """Set up GWM RU device tracker."""
     coordinator: GwmRuCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([GwmRuLocationTracker(coordinator)])
+    setup_vehicle_entities(
+        coordinator,
+        async_add_entities,
+        lambda vehicle: (GwmRuLocationTracker(coordinator, vehicle["vin"]),),
+    )
 
 
 class GwmRuLocationTracker(GwmRuEntity, TrackerEntity):
-    """GPS location tracker."""
-
     _attr_name = "Местоположение"
     _attr_source_type = SourceType.GPS
 
-    def __init__(self, coordinator: GwmRuCoordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.entry_id}_location"
+    def __init__(self, coordinator: GwmRuCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin)
+        self._attr_unique_id = f"{coordinator.entity_prefix(vin)}_location"
 
     @property
     def latitude(self) -> float | None:
-        return (self.coordinator.data.get("location") or {}).get("latitude")
+        return ((self.vehicle or {}).get("location") or {}).get("latitude")
 
     @property
     def longitude(self) -> float | None:
-        return (self.coordinator.data.get("location") or {}).get("longitude")
+        return ((self.vehicle or {}).get("location") or {}).get("longitude")
 
     @property
     def location_accuracy(self) -> int | None:
-        return (self.coordinator.data.get("location") or {}).get("gps_accuracy")
+        return ((self.vehicle or {}).get("location") or {}).get("gps_accuracy")

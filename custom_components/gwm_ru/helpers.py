@@ -19,11 +19,16 @@ STATUS_ITEM_MAP: dict[str, str] = {
     "2206004": "door_fr_state",
     "2206005": "door_rr_state",
     "2202001": "climate_state",
+    "2210001": "window_fl_state",
+    "2210002": "window_fr_state",
+    "2210003": "window_rl_state",
+    "2210004": "window_rr_state",
+    "2210032": "rear_defroster_state",
+    "2060016": "steering_wheel_heater_state",
 }
 
 
 def normalize_phone(raw: str) -> str:
-    """Normalize Russian phone to 10 digits without +7."""
     digits = "".join(ch for ch in str(raw) if ch.isdigit())
     if len(digits) == 11 and digits[0] in {"7", "8"}:
         digits = digits[1:]
@@ -42,17 +47,20 @@ def value_to_number(value: Any) -> Any:
 
 
 def _state_equals(value: Any, expected: str) -> bool | None:
-    """Return true when a status value matches the expected GWM state code."""
     if value is None:
         return None
     return str(value) == expected
 
 
+def _window_open(value: Any) -> bool | None:
+    if value is None:
+        return None
+    return str(value) in {"2", "3"}
+
+
 def _build_vehicle_status(state: dict[str, Any]) -> str:
-    """Build a human-readable vehicle status for dashboards."""
     if state.get("engine_on") is True:
         return "Запущена"
-
     openings = [
         state.get("door_fl_open"),
         state.get("door_fr_open"),
@@ -60,13 +68,10 @@ def _build_vehicle_status(state: dict[str, Any]) -> str:
         state.get("door_rr_open"),
         state.get("trunk_open"),
     ]
-
     if state.get("unlocked") is True or any(value is True for value in openings):
         return "Открыта"
-
     if state.get("locked") is True:
         return "На охране"
-
     return "Неизвестно"
 
 
@@ -100,6 +105,12 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     state["door_rl_open"] = _state_equals(state.get("door_rl_state"), "1")
     state["door_rr_open"] = _state_equals(state.get("door_rr_state"), "1")
     state["climate_on"] = _state_equals(state.get("climate_state"), "1")
+    state["window_fl_open"] = _window_open(state.get("window_fl_state"))
+    state["window_fr_open"] = _window_open(state.get("window_fr_state"))
+    state["window_rl_open"] = _window_open(state.get("window_rl_state"))
+    state["window_rr_open"] = _window_open(state.get("window_rr_state"))
+    state["rear_defroster_on"] = _state_equals(state.get("rear_defroster_state"), "1")
+    state["steering_wheel_heater_on"] = _state_equals(state.get("steering_wheel_heater_state"), "1")
 
     engine_state = status.get("hyEngSts")
     state["engine_state"] = value_to_number(engine_state) if engine_state is not None else None
@@ -109,10 +120,6 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     tbox_status = tbox.get("status") if isinstance(tbox, dict) else None
     state["tbox_status"] = tbox_status
     state["tbox_online"] = str(tbox_status) == "1"
-    vehicle_basics = tbox.get("vehicleBasicsInfo") if isinstance(tbox, dict) else None
-    if vehicle_basics:
-        _LOGGER.debug("vehicleBasicsInfo: %s", vehicle_basics)
-    _LOGGER.debug("TBOX data keys: %s", list(tbox.keys()) if isinstance(tbox, dict) else "none")
     return state
 
 
