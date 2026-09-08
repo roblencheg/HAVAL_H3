@@ -1,0 +1,78 @@
+name: Fix seqNo and release v1.0.9
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/fix-seqno-1.0.9.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Fix GWM T5 seqNo and bump version
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          api = Path('custom_components/gwm_ru/api.py')
+          text = api.read_text()
+          old_seq = 'return f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"'
+          new_seq = 'return uuid.uuid4().hex + "1234"'
+          if old_seq not in text:
+              raise SystemExit('Old seqNo generator not found')
+          text = text.replace(old_seq, new_seq)
+
+          old_poll = 'params={"seqNo": seq_no}, vin_header=vin'
+          new_poll = 'params={"seqNo": seq_no, "vin": vin}, vin_header=vin'
+          if old_poll not in text:
+              raise SystemExit('T5 result poll params pattern not found')
+          text = text.replace(old_poll, new_poll)
+          api.write_text(text)
+
+          manifest = Path('custom_components/gwm_ru/manifest.json')
+          text = manifest.read_text().replace('"version": "1.0.8"', '"version": "1.0.9"')
+          manifest.write_text(text)
+
+          readme = Path('README.md')
+          text = readme.read_text()
+          text = text.replace('Текущая версия: **1.0.8**', 'Текущая версия: **1.0.9**')
+          marker = '### v1.0.8'
+          section = '''### v1.0.9\n\n- Исправлен формат `seqNo` для удалённых T5-команд: UUID без дефисов + `1234`\n- В запрос результата T5-команды добавлен `vin`\n- Исправлена ошибка GWM `seqNo格式有误` при запуске двигателя и других удалённых командах\n\n'''
+          if marker in text and '### v1.0.9' not in text:
+              text = text.replace(marker, section + marker)
+          readme.write_text(text)
+          PY
+
+      - name: Commit fix
+        run: |
+          rm .github/workflows/fix-seqno-1.0.9.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix GWM T5 seqNo format and bump to v1.0.9"
+          git push origin master
+
+      - name: Create v1.0.9 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.9 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release v1.0.9 already exists"
+            exit 0
+          fi
+          gh release create v1.0.9 \
+            --repo "${{ github.repository }}" \
+            --target "$(git rev-parse HEAD)" \
+            --title "v1.0.9" \
+            --notes $'## Исправление удалённых команд\n\n- Исправлен формат `seqNo`: теперь используется 32-символьный UUID без дефисов + `1234`\n- В запрос результата T5-команды добавлен VIN\n- Исправлена ошибка `seqNo格式有误` при отправке команд запуска двигателя и других T5-команд'
