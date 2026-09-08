@@ -41,6 +41,32 @@ COMMANDS = {
         "icon": "mdi:car-door-lock",
         "instructions": {"0x05": {"switchOrder": "2", "operationTime": "0"}},
     },
+    "engine_start": {
+        "key": "engine_start",
+        "name": "Запустить двигатель",
+        "expected_remote_type": "0x03",
+        "risk": "high",
+        "icon": "mdi:engine",
+        "instructions": {
+            "0x03": {
+                "operationTime": "15",
+                "switchOrder": "1",
+            }
+        },
+    },
+    "engine_stop": {
+        "key": "engine_stop",
+        "name": "Остановить двигатель",
+        "expected_remote_type": "0x03",
+        "risk": "high",
+        "icon": "mdi:engine-off",
+        "instructions": {
+            "0x03": {
+                "operationTime": "0",
+                "switchOrder": "2",
+            }
+        },
+    },
     "open_trunk": {
         "key": "open_trunk",
         "name": "Открыть багажник",

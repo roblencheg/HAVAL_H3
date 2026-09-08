@@ -110,6 +110,10 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
             op_time = call.data.get("operation_time", 10)
             instructions["0x19"]["operationTime"] = str(op_time)
 
+        if call.service == "engine_start":
+            op_time = call.data.get("operation_time", 15)
+            instructions["0x03"]["operationTime"] = str(op_time)
+
         security_pin = _get_security_pin(call)
         if not security_pin:
             raise HomeAssistantError(

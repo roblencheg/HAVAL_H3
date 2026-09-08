@@ -109,4 +109,7 @@ EXTRA_SENSORS: dict[str, ExtraSensorDef] = {
     "oil_qty": ExtraSensorDef("oil_qty", "Уровень масла", None, "mdi:oil", None),
     "service_status": ExtraSensorDef("service_status", "Статус обслуживания", None, "mdi:car-connected", None),
     "tbox_status": ExtraSensorDef("tbox_status", "Статус TBOX", None, "mdi:access-point-network", None),
+    "vehicle_status": ExtraSensorDef("vehicle_status", "Статус автомобиля", None, "mdi:car-info", None),
+    "engine_state": ExtraSensorDef("engine_state", "Состояние двигателя", None, "mdi:engine", None),
+    "lock_state": ExtraSensorDef("lock_state", "Состояние замка", None, "mdi:car-door-lock", None),
 }
