@@ -33,6 +33,7 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.security_pin: str | None = None
         self._last_command_time = 0.0
         self._command_status: dict[str, str] = {}
+        self._command_diagnostics: dict[str, dict[str, Any]] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         data = await self.client.async_update()
@@ -41,6 +42,8 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if vin and vin in self._command_status:
                 vehicle["command_status"] = self._command_status[vin]
                 vehicle.setdefault("state", {})["command_status"] = self._command_status[vin]
+            if vin and vin in self._command_diagnostics:
+                vehicle.setdefault("diagnostics", {})["last_command"] = self._command_diagnostics[vin]
         primary_vin = data.get("vin")
         if primary_vin and primary_vin in self._command_status:
             data.setdefault("state", {})["command_status"] = self._command_status[primary_vin]
@@ -76,6 +79,15 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.data.setdefault("state", {})["command_status"] = status
         self.async_update_listeners()
 
+    def _set_command_diagnostics(self, vin: str, data: dict[str, Any]) -> None:
+        self._command_diagnostics[vin] = data
+        if not self.data:
+            return
+        for vehicle in self.data.get("vehicles", []):
+            if vehicle.get("vin") == vin:
+                vehicle.setdefault("diagnostics", {})["last_command"] = data
+        self.async_update_listeners()
+
     async def async_execute_t5(
         self,
         vin: str,
@@ -85,6 +97,14 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     ) -> dict[str, Any]:
         pin = security_pin or self.security_pin
         self.set_command_status(vin, "Выполняется")
+        self._set_command_diagnostics(
+            vin,
+            {
+                "remote_type": expected_remote_type,
+                "status": "Выполняется",
+                "started_at": int(time.time()),
+            },
+        )
         try:
             result = await self.client.async_send_t5_command(
                 vin,
@@ -92,10 +112,30 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 expected_remote_type,
                 security_pin=pin,
             )
-        except Exception:
+        except Exception as err:
             self.set_command_status(vin, "Ошибка")
+            self._set_command_diagnostics(
+                vin,
+                {
+                    "remote_type": expected_remote_type,
+                    "status": "Ошибка",
+                    "error": str(err),
+                    "finished_at": int(time.time()),
+                },
+            )
             raise
         self.set_command_status(vin, "Успешно")
+        self._set_command_diagnostics(
+            vin,
+            {
+                "remote_type": expected_remote_type,
+                "status": "Успешно",
+                "result_code": result.get("resultCode"),
+                "result_msg": result.get("resultMsg"),
+                "returned_remote_type": result.get("remoteType"),
+                "finished_at": int(time.time()),
+            },
+        )
         await self.async_request_refresh()
         return result
 
