@@ -94,7 +94,23 @@ class GwmRuApiClient:
             "rear_defroster": state.get("rear_defroster_state") is not None,
             "steering_wheel_heater": state.get("steering_wheel_heater_state") is not None,
         }
-        return {"vin": str(vin), "display_vin": car.get("showedVin") or "", "vehicle": car_data, "vehicle_name": car.get("vehicleName") or car.get("modelName") or "GWM vehicle", "state": state, "location": location, "capabilities": capabilities}
+        diagnostic_status = {
+            key: value
+            for key, value in status.items()
+            if key not in {"items", "latitude", "longitude", "vin"}
+            and (value is None or isinstance(value, (str, int, float, bool)))
+        }
+        diagnostic_items = [
+            {"code": str(item.get("code")), "value": item.get("value")}
+            for item in (status.get("items") or [])
+            if isinstance(item, dict)
+        ]
+        diagnostics = {
+            "status_top_level": diagnostic_status,
+            "status_items": diagnostic_items,
+            "tbox_status": tbox.get("status") if isinstance(tbox, dict) else None,
+        }
+        return {"vin": str(vin), "display_vin": car.get("showedVin") or "", "vehicle": car_data, "vehicle_name": car.get("vehicleName") or car.get("modelName") or "GWM vehicle", "state": state, "location": location, "capabilities": capabilities, "diagnostics": diagnostics}
 
     async def async_check_security_password(self, security_pin: str, check_type: int = 3) -> str:
         await self._ensure_login()
