@@ -26,7 +26,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class GwmRuClimate(GwmRuEntity, ClimateEntity):
     _attr_name = "Климат"
     _attr_hvac_modes = [HVACMode.OFF, HVACMode.COOL]
-    _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
+    _attr_supported_features = (
+        ClimateEntityFeature.TARGET_TEMPERATURE
+        | ClimateEntityFeature.TURN_ON
+        | ClimateEntityFeature.TURN_OFF
+    )
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 1
     _attr_min_temp = 16
@@ -61,25 +65,41 @@ class GwmRuClimate(GwmRuEntity, ClimateEntity):
     def target_temperature(self) -> float | None:
         return self._requested_target_temperature or 18.0
 
-    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-        if not self.coordinator.security_pin:
-            raise HomeAssistantError("Security PIN is required")
-        switch_order = "1" if hvac_mode == HVACMode.COOL else "2"
-        instructions = {
+    def _instructions(self, switch_order: str, temperature: float | None = None) -> dict:
+        target = temperature if temperature is not None else self.target_temperature or 18
+        return {
             "0x04": {
                 "airConditioner": {
                     "operationTime": "15",
                     "switchOrder": switch_order,
-                    "temperature": str(int(self.target_temperature or 18)),
+                    "temperature": str(int(target)),
                 }
             }
         }
+
+    async def _send(self, switch_order: str, temperature: float | None = None) -> None:
+        if not self.coordinator.security_pin:
+            raise HomeAssistantError("Security PIN is required")
         await self.coordinator.async_execute_t5(
             self.vin,
-            instructions,
+            self._instructions(switch_order, temperature),
             "0x04",
             self.coordinator.security_pin,
         )
+
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        if hvac_mode == HVACMode.COOL:
+            await self._send("1")
+        elif hvac_mode == HVACMode.OFF:
+            await self._send("2")
+        else:
+            raise HomeAssistantError(f"Unsupported HVAC mode: {hvac_mode}")
+
+    async def async_turn_on(self) -> None:
+        await self._send("1")
+
+    async def async_turn_off(self) -> None:
+        await self._send("2")
 
     async def async_set_temperature(self, **kwargs) -> None:
         temperature = kwargs.get(ATTR_TEMPERATURE)
@@ -87,20 +107,6 @@ class GwmRuClimate(GwmRuEntity, ClimateEntity):
             return
         temperature = max(self.min_temp, min(self.max_temp, float(temperature)))
         self._requested_target_temperature = temperature
-        if self.hvac_mode == HVACMode.OFF:
-            return
-        instructions = {
-            "0x04": {
-                "airConditioner": {
-                    "operationTime": "15",
-                    "switchOrder": "1",
-                    "temperature": str(int(temperature)),
-                }
-            }
-        }
-        await self.coordinator.async_execute_t5(
-            self.vin,
-            instructions,
-            "0x04",
-            self.coordinator.security_pin,
-        )
+        # On GWM RU changing target temperature should be an actual remote command.
+        # If climate is currently off, the same command also starts it.
+        await self._send("1", temperature)
