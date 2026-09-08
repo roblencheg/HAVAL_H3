@@ -123,7 +123,7 @@ class GwmRuApiClient:
         while time.time() < deadline:
             await asyncio.sleep(interval)
             try:
-                payload = await self._request("GET", ENDPOINT_T5_CTRL_RESULT, params={"seqNo": seq_no}, vin_header=vin)
+                payload = await self._request("GET", ENDPOINT_T5_CTRL_RESULT, params={"seqNo": seq_no, "vin": vin}, vin_header=vin)
             except GwmRuApiError:
                 continue
             data = payload.get("data")
@@ -237,4 +237,4 @@ def local_ip() -> str:
 
 
 def _make_t5_seq_no() -> str:
-    return f"{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
+    return uuid.uuid4().hex + "1234"
