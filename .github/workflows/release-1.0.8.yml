@@ -1,0 +1,30 @@
+name: Release v1.0.8
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/release-1.0.8.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create v1.0.8 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.8 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release v1.0.8 already exists"
+            exit 0
+          fi
+          gh release create v1.0.8 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.8" \
+            --notes $'## Что нового\n\n- Поддержка нескольких автомобилей в одном аккаунте GWM\n- Полноценная ClimateEntity с включением/выключением и целевой температурой 16–32 °C\n- Стандартная диагностика Home Assistant с редактированием секретов\n- Статус выполнения удалённых команд\n- Состояния четырёх окон\n- Состояния обогрева заднего стекла и руля\n- Команды и сущности привязаны к конкретному автомобилю\n- Сохранены прежние unique ID для первой машины\n\n## Важно\n\nClimate и отдельные статусы зависят от того, какие данные возвращает конкретная модель через российское облако GWM.'
