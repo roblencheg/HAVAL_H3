@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .capabilities import has_capability
 from .const import DOMAIN
 from .coordinator import GwmRuCoordinator
 from .entity import GwmRuEntity, setup_vehicle_entities
@@ -15,11 +16,13 @@ from .entity import GwmRuEntity, setup_vehicle_entities
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: GwmRuCoordinator = hass.data[DOMAIN][entry.entry_id]
-    setup_vehicle_entities(
-        coordinator,
-        async_add_entities,
-        lambda vehicle: (GwmRuLocationTracker(coordinator, vehicle["vin"]),),
-    )
+
+    def entities_for_vehicle(vehicle):
+        if not has_capability(vehicle, "1-2-17"):
+            return ()
+        return (GwmRuLocationTracker(coordinator, vehicle["vin"]),)
+
+    setup_vehicle_entities(coordinator, async_add_entities, entities_for_vehicle)
 
 
 class GwmRuLocationTracker(GwmRuEntity, TrackerEntity):
