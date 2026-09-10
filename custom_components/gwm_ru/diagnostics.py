@@ -70,6 +70,23 @@ async def _probe_requests(
     return {"ok": False, "attempts": errors}
 
 
+async def _probe_history_type(client: Any, vin: str, vehicle_id: Any, history_type: int) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "vin": vin,
+        "type": history_type,
+        "pageNum": 1,
+        "pageSize": 100,
+    }
+    if vehicle_id is not None:
+        body["vehicleId"] = vehicle_id
+    return await _probe_requests(
+        client,
+        ENDPOINT_REMOTE_HISTORY,
+        vin,
+        [{"method": "POST", "body": body}],
+    )
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -85,29 +102,15 @@ async def async_get_config_entry_diagnostics(
         ownership = str(car.get("ownership") or 1)
         vehicle_id = car.get("vehicleId")
 
-        # getWeyVrcHistory is POST and requires `type`:
-        # 1 = all, 2 = own integration/account commands, 3 = other-user commands.
-        # Prefer type=1 so commands from the official app are visible too.
-        history_bodies: list[dict[str, Any]] = [
-            {"vin": str(vin), "type": 1, "pageNum": 1, "pageSize": 50},
-            {"vin": str(vin), "type": 2, "pageNum": 1, "pageSize": 50},
-            {"vin": str(vin), "type": 3, "pageNum": 1, "pageSize": 50},
-            {"vin": str(vin), "type": 1, "pageNo": 1, "pageSize": 50},
-            {"vin": str(vin), "type": 1, "current": 1, "size": 50},
-            {"vin": str(vin), "type": 1, "userRole": int(ownership), "pageNum": 1, "pageSize": 50},
-        ]
-        if vehicle_id is not None:
-            history_bodies.insert(
-                0,
-                {
-                    "vin": str(vin),
-                    "vehicleId": vehicle_id,
-                    "type": 1,
-                    "pageNum": 1,
-                    "pageSize": 50,
-                },
-            )
-        history_attempts = [{"method": "POST", "body": body} for body in history_bodies]
+        # The server documents type as: 1 = all, 2 = own, 3 = other users.
+        # Probe all three independently instead of stopping after the first
+        # successful response. A successful type=1 call can still omit a class
+        # of actions, and we want that visible in diagnostics.
+        remote_history_by_type = {
+            "all": await _probe_history_type(coordinator.client, str(vin), vehicle_id, 1),
+            "own": await _probe_history_type(coordinator.client, str(vin), vehicle_id, 2),
+            "other_users": await _probe_history_type(coordinator.client, str(vin), vehicle_id, 3),
+        }
 
         compound_attempts = [
             {"method": "GET", "params": {"vin": str(vin), "userRole": ownership}},
@@ -142,12 +145,7 @@ async def async_get_config_entry_diagnostics(
         read_only_probes.append(
             {
                 "vin": str(vin),
-                "remote_history": await _probe_requests(
-                    coordinator.client,
-                    ENDPOINT_REMOTE_HISTORY,
-                    str(vin),
-                    history_attempts,
-                ),
+                "remote_history_by_type": remote_history_by_type,
                 "compound_templates": compound,
                 "compound_template_details": template_details,
             }
