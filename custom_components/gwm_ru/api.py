@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, quote_plus, urlencode, urlparse
 from aiohttp import ClientError, ClientSession
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 
-from .const import APP_ID, APP_KEY, APP_SEC, APP_VERSION, AUTH_PREFIX, BASE_URL, BRAND, COUNTRY, ENDPOINT_CHECK_SECURITY_PASSWORD, ENDPOINT_FIND_STATUS, ENDPOINT_LAST_STATUS, ENDPOINT_LOGIN, ENDPOINT_T5_CTRL_RESULT, ENDPOINT_T5_SEND_CMD, ENDPOINT_VEHICLES, ENTERPRISE_ID, LANGUAGE, REGION_CODE, SYSTEM_TYPE, TERMINAL
+from .const import APP_ID, APP_KEY, APP_SEC, APP_VERSION, AUTH_PREFIX, BASE_URL, BRAND, COUNTRY, ENDPOINT_CHECK_SECURITY_PASSWORD, ENDPOINT_FIND_STATUS, ENDPOINT_LAST_STATUS, ENDPOINT_LOGIN, ENDPOINT_T5_CTRL_RESULT, ENDPOINT_T5_SEND_CMD, ENDPOINT_VEHICLE_CAPABILITIES, ENDPOINT_VEHICLES, ENTERPRISE_ID, LANGUAGE, REGION_CODE, SYSTEM_TYPE, TERMINAL
 from .helpers import build_state, normalize_phone, redact_vehicle
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,6 +110,10 @@ class GwmRuApiClient:
             "status_items": diagnostic_items,
             "tbox_status": tbox.get("status") if isinstance(tbox, dict) else None,
         }
+        try:
+            diagnostics["vehicle_capability_raw"] = await self._get_vehicle_capabilities(str(vin))
+        except Exception as err:
+            diagnostics["vehicle_capability_error"] = str(err)
         return {"vin": str(vin), "display_vin": car.get("showedVin") or "", "vehicle": car_data, "vehicle_name": car.get("vehicleName") or car.get("modelName") or "GWM vehicle", "state": state, "location": location, "capabilities": capabilities, "diagnostics": diagnostics}
 
     async def async_check_security_password(self, security_pin: str, check_type: int = 3) -> str:
@@ -178,6 +182,10 @@ class GwmRuApiClient:
         payload = await self._request("GET", ENDPOINT_FIND_STATUS, params={"imsi": imsi, "vehicleId": vehicle_id}, vin_header=vin)
         data = payload.get("data") or {}
         return data if isinstance(data, dict) else {}
+
+    async def _get_vehicle_capabilities(self, vin: str) -> Any:
+        payload = await self._request("GET", ENDPOINT_VEHICLE_CAPABILITIES, params={"vin": vin}, vin_header=vin)
+        return payload.get("data")
 
     async def _request(self, method: str, path: str, *, params: dict[str, str] | None = None, body: dict[str, Any] | None = None, with_token: bool = True, vin_header: str | None = None, retry_auth: bool = True) -> dict[str, Any]:
         params = params or {}
