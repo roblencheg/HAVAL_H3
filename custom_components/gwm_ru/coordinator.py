@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .api import GwmRuApiClient
-from .const import DOMAIN
+from .const import DOMAIN, ENDPOINT_REMOTE_HISTORY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.client = client
         self.entry_id = entry_id
         self.enable_remote_controls = False
-        self.command_cooldown = 30
+        self.command_cooldown = 5
         self.security_pin: str | None = None
         self._last_command_time = 0.0
         self._command_status: dict[str, str] = {}
@@ -43,6 +43,9 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             vin = vehicle.get("vin")
             if not vin:
                 continue
+
+            await self._async_attach_remote_history(vehicle)
+
             if vin in self._command_status:
                 vehicle["command_status"] = self._command_status[vin]
                 vehicle.setdefault("state", {})["command_status"] = self._command_status[vin]
@@ -68,6 +71,41 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if primary_vehicle:
                 data["state"] = primary_vehicle.get("state", data.get("state", {}))
         return data
+
+    async def _async_attach_remote_history(self, vehicle: dict[str, Any]) -> None:
+        """Attach recent remote-control history when the VIN supports it."""
+        capabilities = vehicle.get("capabilities") or {}
+        if not capabilities.get("remote_history"):
+            return
+
+        vin = vehicle.get("vin")
+        if not vin:
+            return
+        car = vehicle.get("vehicle") or {}
+        vehicle_id = car.get("vehicleId")
+        body: dict[str, Any] = {
+            "vin": str(vin),
+            "type": 2,
+            "pageNum": 1,
+            "pageSize": 20,
+        }
+        if vehicle_id is not None:
+            body["vehicleId"] = vehicle_id
+
+        try:
+            payload = await self.client._request(
+                "POST",
+                ENDPOINT_REMOTE_HISTORY,
+                body=body,
+                vin_header=str(vin),
+            )
+            history_data = payload.get("data") or {}
+            history_list = history_data.get("list") if isinstance(history_data, dict) else None
+            vehicle["remote_history"] = history_list if isinstance(history_list, list) else []
+        except Exception as err:
+            vehicle["remote_history"] = []
+            vehicle.setdefault("diagnostics", {})["remote_history_error"] = str(err)
+            _LOGGER.debug("Could not fetch remote history for %s: %s", vin, err)
 
     @staticmethod
     def _vehicle_status_from_state(state: dict[str, Any]) -> str:
@@ -202,6 +240,6 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         now = time.time()
         elapsed = now - self._last_command_time
         if elapsed < self.command_cooldown:
-            remaining = int(self.command_cooldown - elapsed)
+            remaining = max(1, int(self.command_cooldown - elapsed + 0.999))
             raise ValueError(f"Command cooldown active. Wait {remaining} seconds.")
         self._last_command_time = now
