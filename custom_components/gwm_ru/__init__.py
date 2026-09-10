@@ -28,6 +28,7 @@ from .const import (
     DEFAULT_ENABLE_REMOTE_CONTROLS,
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
+    LEGACY_COMMAND_COOLDOWN,
     PLATFORMS,
 )
 from .coordinator import GwmRuCoordinator
@@ -39,6 +40,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = dict(entry.data)
     options = dict(entry.options)
     device_id = data.get(CONF_DEVICE_ID) or uuid4().hex
+
+    # beta migration: 30 s used to be the default and is unnecessarily long.
+    # Preserve explicitly configured non-default values, but migrate the old
+    # default to the new 5 s value automatically.
+    if options.get(CONF_COMMAND_COOLDOWN) == LEGACY_COMMAND_COOLDOWN:
+        options[CONF_COMMAND_COOLDOWN] = DEFAULT_COMMAND_COOLDOWN
+        hass.config_entries.async_update_entry(entry, options=options)
 
     client = GwmRuApiClient(
         async_get_clientsession(hass),
@@ -55,7 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.entry_id,
     )
     coordinator.enable_remote_controls = options.get(CONF_ENABLE_REMOTE_CONTROLS, DEFAULT_ENABLE_REMOTE_CONTROLS)
-    coordinator.command_cooldown = int(options.get(CONF_COMMAND_COOLDOWN, data.get(CONF_COMMAND_COOLDOWN, DEFAULT_COMMAND_COOLDOWN)))
+    coordinator.command_cooldown = max(0, int(options.get(CONF_COMMAND_COOLDOWN, data.get(CONF_COMMAND_COOLDOWN, DEFAULT_COMMAND_COOLDOWN))))
     coordinator.security_pin = options.get(CONF_SECURITY_PIN) or data.get(CONF_SECURITY_PIN) or None
 
     await coordinator.async_config_entry_first_refresh()
