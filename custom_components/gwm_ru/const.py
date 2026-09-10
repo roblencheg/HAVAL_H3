@@ -106,5 +106,8 @@ EXTRA_SENSORS: dict[str, ExtraSensorDef] = {
     "vehicle_status": ExtraSensorDef("vehicle_status", "Статус автомобиля", None, "mdi:car-info", None),
     "engine_state": ExtraSensorDef("engine_state", "Состояние двигателя", None, "mdi:engine", None),
     "lock_state": ExtraSensorDef("lock_state", "Состояние замка", None, "mdi:car-door-lock", None),
+    "driver_seat_heater_state": ExtraSensorDef("driver_seat_heater_state", "Уровень обогрева водительского сиденья", None, "mdi:car-seat-heater", None),
+    "passenger_seat_heater_state": ExtraSensorDef("passenger_seat_heater_state", "Уровень обогрева пассажирского сиденья", None, "mdi:car-seat-heater", None),
+    "windshield_heater_state": ExtraSensorDef("windshield_heater_state", "Состояние обогрева лобового стекла", None, "mdi:car-defrost-front", None),
     "command_status": ExtraSensorDef("command_status", "Статус команды", None, "mdi:progress-clock", None),
 }
