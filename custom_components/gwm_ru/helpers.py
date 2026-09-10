@@ -23,8 +23,13 @@ STATUS_ITEM_MAP: dict[str, str] = {
     "2210002": "window_fr_state",
     "2210003": "window_rl_state",
     "2210004": "window_rr_state",
+    "2210005": "sunroof_state",
     "2210032": "rear_defroster_state",
+    "2220001": "driver_seat_heater_state",
+    "2220002": "passenger_seat_heater_state",
     "2060016": "steering_wheel_heater_state",
+    "2078020": "cabin_clean_state",
+    "2310001": "gps_switch_state",
 }
 
 
@@ -56,6 +61,14 @@ def _window_open(value: Any) -> bool | None:
     if value is None:
         return None
     return str(value) in {"2", "3"}
+
+
+def _sunroof_open(value: Any) -> bool | None:
+    if value is None:
+        return None
+    # GWM status mapping uses 3 for fully closed; other reported positions are
+    # treated as not closed until model-specific semantics prove otherwise.
+    return str(value) != "3"
 
 
 def _build_vehicle_status(state: dict[str, Any]) -> str:
@@ -109,8 +122,12 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     state["window_fr_open"] = _window_open(state.get("window_fr_state"))
     state["window_rl_open"] = _window_open(state.get("window_rl_state"))
     state["window_rr_open"] = _window_open(state.get("window_rr_state"))
+    state["sunroof_open"] = _sunroof_open(state.get("sunroof_state"))
     state["rear_defroster_on"] = _state_equals(state.get("rear_defroster_state"), "1")
+    state["driver_seat_heater_on"] = _state_equals(state.get("driver_seat_heater_state"), "1")
+    state["passenger_seat_heater_on"] = _state_equals(state.get("passenger_seat_heater_state"), "1")
     state["steering_wheel_heater_on"] = _state_equals(state.get("steering_wheel_heater_state"), "1")
+    state["cabin_clean_on"] = _state_equals(state.get("cabin_clean_state"), "1")
 
     engine_state = status.get("hyEngSts")
     state["engine_state"] = value_to_number(engine_state) if engine_state is not None else None
