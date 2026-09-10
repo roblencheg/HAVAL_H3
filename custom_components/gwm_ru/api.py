@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, quote_plus, urlencode, urlparse
 from aiohttp import ClientError, ClientSession
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 
+from .capabilities import build_vehicle_capabilities
 from .const import APP_ID, APP_KEY, APP_SEC, APP_VERSION, AUTH_PREFIX, BASE_URL, BRAND, COUNTRY, ENDPOINT_CHECK_SECURITY_PASSWORD, ENDPOINT_FIND_STATUS, ENDPOINT_LAST_STATUS, ENDPOINT_LOGIN, ENDPOINT_T5_CTRL_RESULT, ENDPOINT_T5_SEND_CMD, ENDPOINT_VEHICLE_CAPABILITIES, ENDPOINT_VEHICLES, ENTERPRISE_ID, LANGUAGE, REGION_CODE, SYSTEM_TYPE, TERMINAL
 from .helpers import build_state, normalize_phone, redact_vehicle
 
@@ -72,10 +73,12 @@ class GwmRuApiClient:
         vehicle_id = car.get("vehicleId")
         if not vin:
             raise GwmRuApiError("Vehicle does not contain VIN")
+
         status = await self._get_last_status(str(vin))
         tbox: dict[str, Any] = {}
         if imsi and vehicle_id:
             tbox = await self._find_status(str(imsi), str(vehicle_id), str(vin))
+
         state = build_state(status, tbox)
         location = {"latitude": status.get("latitude"), "longitude": status.get("longitude"), "gps_accuracy": 50}
         car_data = redact_vehicle(car)
@@ -84,16 +87,32 @@ class GwmRuApiClient:
         state["brand"] = car_data.get("brandName") or (name_parts[0] if name_parts else None)
         state["model"] = model_name or car_data.get("model")
         state["color"] = car_data.get("color")
-        capabilities = {
-            "remote_commands": True,
-            "engine": state.get("engine_state") is not None,
-            "climate": state.get("climate_state") is not None or state.get("ambient_temperature") is not None,
-            "lock": state.get("lock_state") is not None,
-            "trunk": state.get("trunk_state") is not None,
-            "windows": any(state.get(key) is not None for key in ("window_fl_state", "window_fr_state", "window_rl_state", "window_rr_state")),
-            "rear_defroster": state.get("rear_defroster_state") is not None,
-            "steering_wheel_heater": state.get("steering_wheel_heater_state") is not None,
-        }
+
+        capability_raw: Any = None
+        capability_error: str | None = None
+        try:
+            user_role = int(car.get("ownership") or 1)
+            capability_raw = await self._get_vehicle_capabilities(str(vin), user_role)
+            capabilities = build_vehicle_capabilities(capability_raw)
+        except Exception as err:
+            capability_error = str(err)
+            # Compatibility fallback only. Entity platforms treat a non-cloud
+            # capability source permissively so a transient capability API
+            # failure cannot make an existing installation lose its entities.
+            capabilities = {
+                "remote_commands": True,
+                "engine": state.get("engine_state") is not None,
+                "climate": state.get("climate_state") is not None or state.get("ambient_temperature") is not None,
+                "lock": state.get("lock_state") is not None,
+                "trunk": state.get("trunk_state") is not None,
+                "windows": any(state.get(key) is not None for key in ("window_fl_state", "window_fr_state", "window_rl_state", "window_rr_state")),
+                "rear_defroster": state.get("rear_defroster_state") is not None,
+                "steering_wheel_heater": state.get("steering_wheel_heater_state") is not None,
+                "codes": [],
+                "unknown": [],
+                "source": "telemetry_fallback",
+            }
+
         diagnostic_status = {
             key: value
             for key, value in status.items()
@@ -109,13 +128,25 @@ class GwmRuApiClient:
             "status_top_level": diagnostic_status,
             "status_items": diagnostic_items,
             "tbox_status": tbox.get("status") if isinstance(tbox, dict) else None,
+            "capability_source": capabilities.get("source"),
+            "capability_codes": capabilities.get("codes", []),
+            "unknown_capabilities": capabilities.get("unknown", []),
         }
-        try:
-            user_role = int(car.get("ownership") or 1)
-            diagnostics["vehicle_capability_raw"] = await self._get_vehicle_capabilities(str(vin), user_role)
-        except Exception as err:
-            diagnostics["vehicle_capability_error"] = str(err)
-        return {"vin": str(vin), "display_vin": car.get("showedVin") or "", "vehicle": car_data, "vehicle_name": car.get("vehicleName") or car.get("modelName") or "GWM vehicle", "state": state, "location": location, "capabilities": capabilities, "diagnostics": diagnostics}
+        if capability_raw is not None:
+            diagnostics["vehicle_capability_raw"] = capability_raw
+        if capability_error:
+            diagnostics["vehicle_capability_error"] = capability_error
+
+        return {
+            "vin": str(vin),
+            "display_vin": car.get("showedVin") or "",
+            "vehicle": car_data,
+            "vehicle_name": car.get("vehicleName") or car.get("modelName") or "GWM vehicle",
+            "state": state,
+            "location": location,
+            "capabilities": capabilities,
+            "diagnostics": diagnostics,
+        }
 
     async def async_check_security_password(self, security_pin: str, check_type: int = 3) -> str:
         await self._ensure_login()
