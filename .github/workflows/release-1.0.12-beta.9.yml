@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.9
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.9.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.9 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.9 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.9" \
+            --prerelease \
+            --notes $'## Seat-state and official-app history fixes\n\n- Seat heater state is now treated as a 0..3 level: any value above 0 means heater on\n- Confirmed raw code 2202111 is mapped as windshield heater state\n- Remote command history now requests type=1 (all commands), so official GWM app actions can be captured\n- Diagnostics also prefer type=1 and retain type=2/3 fallbacks\n- Capability-driven multi-vehicle behavior remains unchanged\n- Command cooldown remains 5 seconds by default.'
