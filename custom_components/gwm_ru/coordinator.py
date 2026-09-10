@@ -85,7 +85,8 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         vehicle_id = car.get("vehicleId")
         body: dict[str, Any] = {
             "vin": str(vin),
-            "type": 2,
+            # 1 = all commands, including commands sent by the official app.
+            "type": 1,
             "pageNum": 1,
             "pageSize": 20,
         }
