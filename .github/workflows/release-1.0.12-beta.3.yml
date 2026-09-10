@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.3
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.3.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.3 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.3 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.3" \
+            --prerelease \
+            --notes $'## Capability-driven architecture\n\n- Добавлен единый capability registry/parser\n- Возможности теперь определяются отдельно для каждого VIN через GWM cloud\n- Кнопки, sensors, binary sensors, climate и location фильтруются по capability конкретного автомобиля\n- Нет привязки логики к H3/H5/TANK/ORA/WEY\n- Добавлены состояния люка, обогрева сидений и очистки воздуха для известных raw-кодов\n- Capability заявляет engine status даже если текущий REST telemetry его не возвращает\n- Неизвестные leaf capability сохраняются в diagnostics для поддержки новых моделей\n- Diagnostics теперь редактируют GPS и raw identifiers\n\nЭто фундамент универсальной GWM RU integration для разных моделей и нескольких автомобилей в одном аккаунте.'
