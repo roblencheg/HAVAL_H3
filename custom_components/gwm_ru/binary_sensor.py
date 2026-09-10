@@ -28,7 +28,6 @@ BINARY_SENSORS: tuple[GwmRuBinarySensorDescription, ...] = (
     GwmRuBinarySensorDescription(key="tbox_online", state_key="tbox_online", name="TBOX онлайн", device_class=BinarySensorDeviceClass.CONNECTIVITY),
     GwmRuBinarySensorDescription(key="engine_on", state_key="engine_on", name="Двигатель запущен", icon="mdi:engine"),
     # BinarySensorDeviceClass.LOCK uses ON = unlocked/open and OFF = locked/closed.
-    # Keep the legacy key/unique_id, but expose the semantic "unlocked" value.
     GwmRuBinarySensorDescription(key="locked", state_key="unlocked", name="Автомобиль", device_class=BinarySensorDeviceClass.LOCK, icon="mdi:car-door-lock"),
     GwmRuBinarySensorDescription(key="trunk_open", state_key="trunk_open", name="Багажник открыт", device_class=BinarySensorDeviceClass.DOOR),
     GwmRuBinarySensorDescription(key="door_fl_open", state_key="door_fl_open", name="Передняя левая дверь открыта", device_class=BinarySensorDeviceClass.DOOR),
@@ -40,8 +39,17 @@ BINARY_SENSORS: tuple[GwmRuBinarySensorDescription, ...] = (
     GwmRuBinarySensorDescription(key="window_fr_open", state_key="window_fr_open", name="Переднее правое окно открыто", device_class=BinarySensorDeviceClass.WINDOW),
     GwmRuBinarySensorDescription(key="window_rl_open", state_key="window_rl_open", name="Заднее левое окно открыто", device_class=BinarySensorDeviceClass.WINDOW),
     GwmRuBinarySensorDescription(key="window_rr_open", state_key="window_rr_open", name="Заднее правое окно открыто", device_class=BinarySensorDeviceClass.WINDOW),
+    GwmRuBinarySensorDescription(key="sunroof_open", state_key="sunroof_open", name="Люк открыт", device_class=BinarySensorDeviceClass.WINDOW, icon="mdi:car-convertible"),
     GwmRuBinarySensorDescription(key="rear_defroster_on", state_key="rear_defroster_on", name="Обогрев заднего стекла", icon="mdi:car-defrost-rear"),
+    GwmRuBinarySensorDescription(key="driver_seat_heater_on", state_key="driver_seat_heater_on", name="Обогрев водительского сиденья", icon="mdi:car-seat-heater"),
+    GwmRuBinarySensorDescription(key="passenger_seat_heater_on", state_key="passenger_seat_heater_on", name="Обогрев пассажирского сиденья", icon="mdi:car-seat-heater"),
     GwmRuBinarySensorDescription(key="steering_wheel_heater_on", state_key="steering_wheel_heater_on", name="Обогрев руля", icon="mdi:steering"),
+    GwmRuBinarySensorDescription(key="cabin_clean_on", state_key="cabin_clean_on", name="Очистка воздуха салона", icon="mdi:air-filter"),
+    # These capabilities are known from the official app/tree, but their raw
+    # telemetry item codes are still being identified. The entities are
+    # intentionally present as unknown rather than silently hidden.
+    GwmRuBinarySensorDescription(key="windshield_heater_on", state_key="windshield_heater_on", name="Обогрев лобового стекла", icon="mdi:car-defrost-front"),
+    GwmRuBinarySensorDescription(key="front_defrost_on", state_key="front_defrost_on", name="Передний дефрост", icon="mdi:car-defrost-front"),
 )
 
 
