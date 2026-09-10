@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 DOMAIN = "gwm_ru"
-PLATFORMS = ["button", "sensor", "binary_sensor", "device_tracker", "climate"]
+PLATFORMS = ["button", "sensor", "binary_sensor", "device_tracker", "climate", "switch"]
 
 CONF_PHONE = "phone"
 CONF_COUNTRY = "country"
@@ -23,7 +23,8 @@ DEFAULT_COUNTRY_CODE = "+7"
 DEFAULT_POLL_INTERVAL = 300
 DEFAULT_ENABLE_REMOTE_CONTROLS = False
 DEFAULT_ENABLE_DANGEROUS_CONTROLS = False
-DEFAULT_COMMAND_COOLDOWN = 30
+DEFAULT_COMMAND_COOLDOWN = 5
+LEGACY_COMMAND_COOLDOWN = 30
 
 BASE_URL = "https://rus-h5-gateway.gwmcloud.com"
 AUTH_PREFIX = "gwm"
