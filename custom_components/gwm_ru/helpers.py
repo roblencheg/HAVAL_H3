@@ -29,6 +29,7 @@ STATUS_ITEM_MAP: dict[str, str] = {
     "2220002": "passenger_seat_heater_state",
     "2060016": "steering_wheel_heater_state",
     "2078020": "cabin_clean_state",
+    "2202111": "windshield_heater_state",
     "2310001": "gps_switch_state",
 }
 
@@ -55,6 +56,16 @@ def _state_equals(value: Any, expected: str) -> bool | None:
     if value is None:
         return None
     return str(value) == expected
+
+
+def _state_positive(value: Any) -> bool | None:
+    """Return True for numeric state levels greater than zero."""
+    if value is None:
+        return None
+    try:
+        return float(value) > 0
+    except (TypeError, ValueError):
+        return None
 
 
 def _window_open(value: Any) -> bool | None:
@@ -124,10 +135,12 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     state["window_rr_open"] = _window_open(state.get("window_rr_state"))
     state["sunroof_open"] = _sunroof_open(state.get("sunroof_state"))
     state["rear_defroster_on"] = _state_equals(state.get("rear_defroster_state"), "1")
-    state["driver_seat_heater_on"] = _state_equals(state.get("driver_seat_heater_state"), "1")
-    state["passenger_seat_heater_on"] = _state_equals(state.get("passenger_seat_heater_state"), "1")
+    # Seat heater states are level values (0..3), not booleans.
+    state["driver_seat_heater_on"] = _state_positive(state.get("driver_seat_heater_state"))
+    state["passenger_seat_heater_on"] = _state_positive(state.get("passenger_seat_heater_state"))
     state["steering_wheel_heater_on"] = _state_equals(state.get("steering_wheel_heater_state"), "1")
     state["cabin_clean_on"] = _state_equals(state.get("cabin_clean_state"), "1")
+    state["windshield_heater_on"] = _state_equals(state.get("windshield_heater_state"), "1")
     state["gps_enabled"] = _state_equals(state.get("gps_switch_state"), "1")
 
     engine_state = status.get("hyEngSts")
