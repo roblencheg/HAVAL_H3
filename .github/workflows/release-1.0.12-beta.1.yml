@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.1
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.1 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.1" \
+            --prerelease \
+            --notes $'## Beta diagnostics\n\n- Добавлен безопасный read-only запрос `vehicle/findVehicleCapabilityItem`\n- Сырой capability-tree сохраняется в Home Assistant diagnostics\n- Ошибка endpoint также сохраняется в diagnostics и не ломает обычное обновление интеграции\n- Stable branch/release не затронуты функционально\n\nНужен для тестирования реальных capability Haval H3.'
