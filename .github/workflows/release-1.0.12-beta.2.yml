@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.2
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.2 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.2 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.2" \
+            --prerelease \
+            --notes $'## Beta diagnostics\n\n- В запрос `vehicle/findVehicleCapabilityItem` добавлен обязательный параметр `userRole`\n- `userRole` берётся из `ownership` автомобиля, fallback = 1\n- Ответ capability-tree по-прежнему сохраняется только в diagnostics\n\nИсправляет ошибку `Required Integer parameter userRole is not present` из beta.1.'
