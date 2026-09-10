@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.7
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.7.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.7 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.7 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.7" \
+            --prerelease \
+            --notes $'## Functional capability controls\n\n- Command cooldown reduced from 30 s to 5 s by default\n- Existing old-default 30 s installations are migrated to 5 s\n- Added capability-driven `switch` platform\n- Added steering-wheel heater switch\n- Added rear-window defroster switch\n- Switches call the existing proven remote-command services and reflect cloud telemetry state\n- Multi-vehicle behavior remains per VIN\n\nWindshield heat and seat levels are intentionally not exposed yet until their exact standalone T5 command payloads are confirmed.'
