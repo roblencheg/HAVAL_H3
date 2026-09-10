@@ -86,14 +86,15 @@ async def async_get_config_entry_diagnostics(
         vehicle_id = car.get("vehicleId")
 
         # getWeyVrcHistory is POST and requires `type`:
-        # 1 = all, 2 = own commands, 3 = commands from other users.
-        # Prefer own commands first, then all as a fallback.
+        # 1 = all, 2 = own integration/account commands, 3 = other-user commands.
+        # Prefer type=1 so commands from the official app are visible too.
         history_bodies: list[dict[str, Any]] = [
-            {"vin": str(vin), "type": 2, "pageNum": 1, "pageSize": 50},
             {"vin": str(vin), "type": 1, "pageNum": 1, "pageSize": 50},
-            {"vin": str(vin), "type": 2, "pageNo": 1, "pageSize": 50},
-            {"vin": str(vin), "type": 2, "current": 1, "size": 50},
-            {"vin": str(vin), "type": 2, "userRole": int(ownership), "pageNum": 1, "pageSize": 50},
+            {"vin": str(vin), "type": 2, "pageNum": 1, "pageSize": 50},
+            {"vin": str(vin), "type": 3, "pageNum": 1, "pageSize": 50},
+            {"vin": str(vin), "type": 1, "pageNo": 1, "pageSize": 50},
+            {"vin": str(vin), "type": 1, "current": 1, "size": 50},
+            {"vin": str(vin), "type": 1, "userRole": int(ownership), "pageNum": 1, "pageSize": 50},
         ]
         if vehicle_id is not None:
             history_bodies.insert(
@@ -101,7 +102,7 @@ async def async_get_config_entry_diagnostics(
                 {
                     "vin": str(vin),
                     "vehicleId": vehicle_id,
-                    "type": 2,
+                    "type": 1,
                     "pageNum": 1,
                     "pageSize": 50,
                 },
