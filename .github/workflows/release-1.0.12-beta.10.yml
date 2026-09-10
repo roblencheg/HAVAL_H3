@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.10
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.10.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.10 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.10 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.10" \
+            --prerelease \
+            --notes $'## Confirmed heater telemetry and deeper history diagnostics\n\n- Added sensors for driver/passenger seat-heater levels (0..3)\n- Added a windshield-heater state sensor\n- Diagnostics now query remote history types 1, 2 and 3 independently\n- History diagnostic page size increased to 100\n- This is read-only investigation for command provenance; no new vehicle control payloads are sent\n- Capability-driven multi-vehicle behavior and 5-second default cooldown are unchanged.'
