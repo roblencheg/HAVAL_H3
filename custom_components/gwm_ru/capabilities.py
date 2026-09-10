@@ -1,15 +1,14 @@
 """Capability parsing and feature registry for GWM RU vehicles.
 
-The Russian GWM app exposes a per-VIN capability tree.  This module keeps
-model-specific assumptions out of the entity platforms: entities are created
-from what the cloud says the concrete vehicle supports.
+The Russian GWM app exposes a per-VIN capability tree. This module keeps
+model-specific assumptions out of entity platforms: entities are created from
+what the cloud says the concrete vehicle supports.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-# Remote command -> capability functionCode.
 COMMAND_CAPABILITIES: dict[str, str] = {
     "engine_start": "1-1-1-1",
     "engine_stop": "1-1-1-2",
@@ -26,13 +25,8 @@ COMMAND_CAPABILITIES: dict[str, str] = {
     "close_sunroof": "1-1-7-2",
     "steering_wheel_heat_on": "1-1-21-1",
     "steering_wheel_heat_off": "1-1-21-2",
-    # open_sunroof/open_sunshade/close_sunshade intentionally have no known
-    # capability code yet. They remain hidden when a capability tree is
-    # available rather than being offered speculatively on every model.
 }
 
-# State/entity key -> capability functionCode. Parent codes are sufficient for
-# grouped state such as four doors/windows.
 STATE_CAPABILITIES: dict[str, str] = {
     "mileage_total": "1-2-4",
     "range_km": "1-2-5-1",
@@ -45,15 +39,32 @@ STATE_CAPABILITIES: dict[str, str] = {
     "tire_fr_temp": "1-2-9-2",
     "tire_rl_temp": "1-2-9-3",
     "tire_rr_temp": "1-2-9-4",
+    "sunroof_state": "1-2-11",
+    "sunroof_open": "1-2-11",
     "engine_state": "1-2-12",
     "engine_on": "1-2-12",
     "climate_state": "1-2-13",
     "climate_on": "1-2-13",
+    "driver_seat_heater_state": "1-2-15-1",
+    "driver_seat_heater_on": "1-2-15-1",
+    "passenger_seat_heater_state": "1-2-15-2",
+    "passenger_seat_heater_on": "1-2-15-2",
+    "rear_defroster_state": "1-2-16",
+    "rear_defroster_on": "1-2-16",
     "lock_state": "1-2-19",
     "locked": "1-2-19",
     "unlocked": "1-2-19",
     "trunk_state": "1-2-20",
     "trunk_open": "1-2-20",
+    "cabin_clean_state": "1-2-24",
+    "cabin_clean_on": "1-2-24",
+    "steering_wheel_heater_state": "1-2-25",
+    "steering_wheel_heater_on": "1-2-25",
+    "windshield_heater_state": "1-2-26",
+    "windshield_heater_on": "1-2-26",
+    "front_defrost_state": "1-2-34",
+    "front_defrost_on": "1-2-34",
+    "gps_switch_state": "1-2-37",
     "door_fl_open": "1-2-1-1",
     "door_fr_open": "1-2-1-2",
     "door_rl_open": "1-2-1-3",
@@ -62,13 +73,8 @@ STATE_CAPABILITIES: dict[str, str] = {
     "window_fr_open": "1-2-2-2",
     "window_rl_open": "1-2-2-3",
     "window_rr_open": "1-2-2-4",
-    "rear_defroster_state": "1-2-16",
-    "rear_defroster_on": "1-2-16",
-    "steering_wheel_heater_state": "1-2-25",
-    "steering_wheel_heater_on": "1-2-25",
 }
 
-# High-level normalized feature name -> one or more capability codes.
 FEATURE_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "engine": ("1-1-1", "1-2-12"),
     "engine_schedule": ("1-1-1-3",),
@@ -106,7 +112,7 @@ KNOWN_CODES.update(code for codes in FEATURE_CAPABILITIES.values() for code in c
 
 
 def flatten_capability_tree(raw: Any) -> tuple[set[str], list[dict[str, Any]]]:
-    """Return all function codes and compact unknown nodes from API data."""
+    """Return all function codes and compact unknown leaf nodes from API data."""
     codes: set[str] = set()
     unknown: list[dict[str, Any]] = []
 
@@ -117,11 +123,12 @@ def flatten_capability_tree(raw: Any) -> tuple[set[str], list[dict[str, Any]]]:
             return
         if not isinstance(node, dict):
             return
+        children = node.get("children")
         code = node.get("functionCode")
         if code:
             code = str(code)
             codes.add(code)
-            if code not in KNOWN_CODES:
+            if not children and code not in KNOWN_CODES:
                 unknown.append(
                     {
                         "functionCode": code,
@@ -129,7 +136,7 @@ def flatten_capability_tree(raw: Any) -> tuple[set[str], list[dict[str, Any]]]:
                         "id": node.get("id"),
                     }
                 )
-        walk(node.get("children"))
+        walk(children)
 
     tree = raw.get("treeVO") if isinstance(raw, dict) else raw
     walk(tree)
@@ -153,7 +160,6 @@ def build_vehicle_capabilities(raw: Any) -> dict[str, Any]:
 
 
 def capability_codes(vehicle: dict[str, Any] | None) -> set[str]:
-    """Get the raw capability code set for a vehicle snapshot."""
     if not vehicle:
         return set()
     capabilities = vehicle.get("capabilities") or {}
@@ -161,12 +167,7 @@ def capability_codes(vehicle: dict[str, Any] | None) -> set[str]:
 
 
 def has_capability(vehicle: dict[str, Any] | None, code: str) -> bool:
-    """Check an exact capability code.
-
-    If the cloud capability request failed, return True as a compatibility
-    fallback so existing users do not lose all entities because of a transient
-    endpoint problem.
-    """
+    """Check exact capability, permissively falling back if API is unavailable."""
     if not vehicle:
         return False
     capabilities = vehicle.get("capabilities") or {}
@@ -176,7 +177,6 @@ def has_capability(vehicle: dict[str, Any] | None, code: str) -> bool:
 
 
 def supports_command(vehicle: dict[str, Any] | None, command_key: str) -> bool:
-    """Return whether a known remote command is explicitly supported."""
     if not vehicle:
         return False
     capabilities = vehicle.get("capabilities") or {}
@@ -187,6 +187,5 @@ def supports_command(vehicle: dict[str, Any] | None, command_key: str) -> bool:
 
 
 def supports_state(vehicle: dict[str, Any] | None, state_key: str) -> bool:
-    """Return whether a state-backed entity is supported by the vehicle."""
     code = STATE_CAPABILITIES.get(state_key)
     return True if code is None else has_capability(vehicle, code)
