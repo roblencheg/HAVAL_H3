@@ -128,6 +128,7 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     state["passenger_seat_heater_on"] = _state_equals(state.get("passenger_seat_heater_state"), "1")
     state["steering_wheel_heater_on"] = _state_equals(state.get("steering_wheel_heater_state"), "1")
     state["cabin_clean_on"] = _state_equals(state.get("cabin_clean_state"), "1")
+    state["gps_enabled"] = _state_equals(state.get("gps_switch_state"), "1")
 
     engine_state = status.get("hyEngSts")
     state["engine_state"] = value_to_number(engine_state) if engine_state is not None else None
