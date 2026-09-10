@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .capabilities import supports_state
 from .const import DOMAIN
 from .coordinator import GwmRuCoordinator
 from .entity import GwmRuEntity, setup_vehicle_entities
@@ -46,14 +47,15 @@ BINARY_SENSORS: tuple[GwmRuBinarySensorDescription, ...] = (
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: GwmRuCoordinator = hass.data[DOMAIN][entry.entry_id]
-    setup_vehicle_entities(
-        coordinator,
-        async_add_entities,
-        lambda vehicle: (
+
+    def entities_for_vehicle(vehicle):
+        return (
             GwmRuBinarySensor(coordinator, vehicle["vin"], description)
             for description in BINARY_SENSORS
-        ),
-    )
+            if supports_state(vehicle, description.state_key)
+        )
+
+    setup_vehicle_entities(coordinator, async_add_entities, entities_for_vehicle)
 
 
 class GwmRuBinarySensor(GwmRuEntity, BinarySensorEntity):
