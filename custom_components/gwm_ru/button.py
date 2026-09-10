@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .capabilities import supports_command
 from .commands import COMMANDS
 from .const import (
     CONF_ENABLE_REMOTE_CONTROLS,
@@ -30,6 +31,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             entities.extend(
                 GwmRuCommandButton(coordinator, vin, cmd)
                 for cmd in COMMANDS.values()
+                if supports_command(vehicle, cmd["key"])
             )
         return entities
 
