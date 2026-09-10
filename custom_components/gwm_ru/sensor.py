@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .capabilities import supports_state
 from .const import DOMAIN, ITEM_MAP, EXTRA_SENSORS
 from .coordinator import GwmRuCoordinator
 from .entity import GwmRuEntity, setup_vehicle_entities
@@ -34,14 +35,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         for defn in list(ITEM_MAP.values()) + list(EXTRA_SENSORS.values())
     )
 
-    setup_vehicle_entities(
-        coordinator,
-        async_add_entities,
-        lambda vehicle: (
+    def entities_for_vehicle(vehicle):
+        return (
             GwmRuSensor(coordinator, vehicle["vin"], description)
             for description in descriptions
-        ),
-    )
+            if supports_state(vehicle, description.state_key)
+        )
+
+    setup_vehicle_entities(coordinator, async_add_entities, entities_for_vehicle)
 
 
 class GwmRuSensor(GwmRuEntity, SensorEntity):
