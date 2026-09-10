@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.6
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.6.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.6 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.6 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.6" \
+            --prerelease \
+            --notes $'## Remote history probe\n\n- `getWeyVrcHistory` теперь вызывается POST с обязательным `type`\n- `type=2` (свои команды) используется первым\n- `type=1` (все) и другие варианты остаются fallback\n- Размер страницы увеличен до 50\n- Управляющие команды автомобилю не менялись\n\nЦель: получить реальную историю remote-команд GWM.'
