@@ -111,7 +111,8 @@ class GwmRuApiClient:
             "tbox_status": tbox.get("status") if isinstance(tbox, dict) else None,
         }
         try:
-            diagnostics["vehicle_capability_raw"] = await self._get_vehicle_capabilities(str(vin))
+            user_role = int(car.get("ownership") or 1)
+            diagnostics["vehicle_capability_raw"] = await self._get_vehicle_capabilities(str(vin), user_role)
         except Exception as err:
             diagnostics["vehicle_capability_error"] = str(err)
         return {"vin": str(vin), "display_vin": car.get("showedVin") or "", "vehicle": car_data, "vehicle_name": car.get("vehicleName") or car.get("modelName") or "GWM vehicle", "state": state, "location": location, "capabilities": capabilities, "diagnostics": diagnostics}
@@ -183,8 +184,13 @@ class GwmRuApiClient:
         data = payload.get("data") or {}
         return data if isinstance(data, dict) else {}
 
-    async def _get_vehicle_capabilities(self, vin: str) -> Any:
-        payload = await self._request("GET", ENDPOINT_VEHICLE_CAPABILITIES, params={"vin": vin}, vin_header=vin)
+    async def _get_vehicle_capabilities(self, vin: str, user_role: int) -> Any:
+        payload = await self._request(
+            "GET",
+            ENDPOINT_VEHICLE_CAPABILITIES,
+            params={"vin": vin, "userRole": str(user_role)},
+            vin_header=vin,
+        )
         return payload.get("data")
 
     async def _request(self, method: str, path: str, *, params: dict[str, str] | None = None, body: dict[str, Any] | None = None, with_token: bool = True, vin_header: str | None = None, retry_auth: bool = True) -> dict[str, Any]:
