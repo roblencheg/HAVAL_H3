@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.5
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.5.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.5 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.5 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.5" \
+            --prerelease \
+            --notes $'## Deeper read-only reverse engineering\n\n- `getWeyVrcHistory` теперь пробуется как POST с несколькими безопасными body-вариантами\n- Добавлен read-only `getCompoundCommandTemplateInfo` для найденных comfort templates\n- Никаких новых remote-команд машине не отправляется\n- Цель: получить историю remote control и точные payload/details шаблонов Зима/Лето.'
