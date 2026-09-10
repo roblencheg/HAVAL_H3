@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.8
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.8.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.8 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.8 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.8" \
+            --prerelease \
+            --notes $'## Remote history becomes a real entity\n\n- Recent remote-command history is now fetched by the coordinator for vehicles that advertise capability `1-1-25`\n- Added `История удалённых команд` sensor with the latest command as state and up to 20 recent commands in attributes\n- Known history entries are decoded into human-readable actions (engine, climate, doors, trunk, vehicle search)\n- Failed commands keep result code and result message in attributes\n- Remote-history API failure is non-fatal and recorded in diagnostics\n- Coordinator internal default cooldown is aligned to 5 seconds\n- All behavior remains per VIN and capability-driven.'
