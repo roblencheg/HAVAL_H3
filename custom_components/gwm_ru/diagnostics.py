@@ -19,8 +19,14 @@ TO_REDACT = {
     "simIccid",
     "engineNo",
     "device_id",
+    "deviceId",
     "phone",
     "display_vin",
+    "latitude",
+    "longitude",
+    # Raw GWM STATUS id embeds the vehicle/device identifier. Capability node
+    # numeric ids are not required for diagnostics; functionCode is canonical.
+    "id",
 }
 
 
