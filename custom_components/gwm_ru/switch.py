@@ -42,6 +42,15 @@ SWITCHES = (
         service_on="rear_defrost_on",
         service_off="rear_defrost_off",
     ),
+    GwmRuSwitchDescription(
+        key="windshield_heater",
+        name="Обогрев лобового стекла",
+        icon="mdi:car-defrost-front",
+        state_key="windshield_heater_on",
+        capability_code="1-1-22",
+        service_on="windshield_heat_on",
+        service_off="windshield_heat_off",
+    ),
 )
 
 
