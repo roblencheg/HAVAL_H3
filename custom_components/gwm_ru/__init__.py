@@ -41,9 +41,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     options = dict(entry.options)
     device_id = data.get(CONF_DEVICE_ID) or uuid4().hex
 
-    # beta migration: 30 s used to be the default and is unnecessarily long.
-    # Preserve explicitly configured non-default values, but migrate the old
-    # default to the new 5 s value automatically.
     if options.get(CONF_COMMAND_COOLDOWN) == LEGACY_COMMAND_COOLDOWN:
         options[CONF_COMMAND_COOLDOWN] = DEFAULT_COMMAND_COOLDOWN
         hass.config_entries.async_update_entry(entry, options=options)
@@ -92,17 +89,68 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
         if not vin:
             raise HomeAssistantError("Vehicle VIN not available")
 
-        instructions = copy.deepcopy(cmd["instructions"])
-        if call.service == "rear_defrost_on":
-            instructions["0x0B"]["defrost"]["operationTime"] = str(call.data.get("operation_time", 10))
-        elif call.service == "steering_wheel_heat_on":
-            instructions["0x19"]["operationTime"] = str(call.data.get("operation_time", 10))
-        elif call.service == "engine_start":
-            instructions["0x03"]["operationTime"] = str(call.data.get("operation_time", 15))
-
         security_pin = _get_security_pin(call)
         if not security_pin:
             raise HomeAssistantError("Security PIN is required. Add it in GWM RU integration settings or pass security_pin in service data.")
+
+        if cmd.get("dynamic") == "seat_heat":
+            try:
+                level = int(call.data.get("level", 0))
+            except (TypeError, ValueError) as err:
+                raise HomeAssistantError("Seat heat level must be an integer from 0 to 3") from err
+            if level < 0 or level > 3:
+                raise HomeAssistantError("Seat heat level must be between 0 and 3")
+            try:
+                operation_time = int(call.data.get("operation_time", 5))
+            except (TypeError, ValueError) as err:
+                raise HomeAssistantError("Seat heat operation_time must be an integer from 1 to 10") from err
+            operation_time = min(10, max(1, operation_time))
+
+            vehicle = coordinator.vehicle(vin) or {}
+            car = vehicle.get("vehicle") or {}
+            state = vehicle.get("state") or {}
+            driver_level = int(state.get("driver_seat_heater_state") or 0)
+            passenger_level = int(state.get("passenger_seat_heater_state") or 0)
+            if cmd.get("seat") == "driver":
+                driver_level = level
+            else:
+                passenger_level = level
+
+            # Official APK: rudder == "2" means right-hand drive. T5 seat payload
+            # is physical left/right, while HA entities are driver/passenger.
+            driver_is_right = str(car.get("rudder") or "1") == "2"
+            left_front = passenger_level if driver_is_right else driver_level
+            right_front = driver_level if driver_is_right else passenger_level
+            any_heat = left_front > 0 or right_front > 0
+            instructions = {
+                "0x0A": {
+                    "seat": {
+                        "operationMode": "1",  # APK/comfort template: heating
+                        "switchOrder": "1" if any_heat else "2",
+                        "operationTime": str(operation_time if any_heat else 0),
+                        "leftFront": str(left_front),
+                        "rightFront": str(right_front),
+                        "leftBack": "0",
+                        "rightBack": "0",
+                        "leftThirdRow": "0",
+                        "rightThirdRow": "0",
+                    }
+                }
+            }
+        else:
+            instructions = copy.deepcopy(cmd["instructions"])
+            if call.service == "rear_defrost_on":
+                instructions["0x0B"]["defrost"]["operationTime"] = str(call.data.get("operation_time", 10))
+            elif call.service == "steering_wheel_heat_on":
+                instructions["0x19"]["operationTime"] = str(call.data.get("operation_time", 10))
+            elif call.service == "windshield_heat_on":
+                try:
+                    operation_time = int(call.data.get("operation_time", 15))
+                except (TypeError, ValueError) as err:
+                    raise HomeAssistantError("Windshield heater operation_time must be an integer from 1 to 15") from err
+                instructions["0x2A"]["operationTime"] = str(min(15, max(1, operation_time)))
+            elif call.service == "engine_start":
+                instructions["0x03"]["operationTime"] = str(call.data.get("operation_time", 15))
 
         await coordinator.async_execute_t5(vin, instructions, cmd["expected_remote_type"], str(security_pin))
 
