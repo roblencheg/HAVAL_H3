@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 DOMAIN = "gwm_ru"
-PLATFORMS = ["button", "sensor", "binary_sensor", "device_tracker", "climate", "switch"]
+PLATFORMS = ["button", "sensor", "binary_sensor", "device_tracker", "climate", "switch", "select"]
 
 CONF_PHONE = "phone"
 CONF_COUNTRY = "country"
