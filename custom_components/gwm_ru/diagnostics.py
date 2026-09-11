@@ -13,6 +13,7 @@ TO_REDACT = {
     "security_pin",
     "securityPassword",
     "accessToken",
+    "refreshToken",
     "token",
     "vin",
     "showedVin",
@@ -26,6 +27,8 @@ TO_REDACT = {
     "latitude",
     "longitude",
     "id",
+    "userId",
+    "beanId",
     "templateId",
     "compoundCommandTemplateId",
     "shareId",
@@ -34,6 +37,11 @@ TO_REDACT = {
     "seqNo",
     "hwCommandId",
 }
+
+
+def _safe_path(path: str, vin: str) -> str:
+    """Redact identifiers embedded inside endpoint paths."""
+    return path.replace(vin, "**REDACTED**")
 
 
 async def _probe(
@@ -45,7 +53,7 @@ async def _probe(
     params: dict[str, str] | None = None,
     body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Run one explicitly read-only research request."""
+    """Run one explicitly read/query-only research request."""
     try:
         payload = await client._request(
             method,
@@ -57,7 +65,7 @@ async def _probe(
         return {
             "ok": True,
             "method": method,
-            "path": path,
+            "path": _safe_path(path, vin),
             "params": params,
             "body": body,
             "code": payload.get("code"),
@@ -68,7 +76,7 @@ async def _probe(
         return {
             "ok": False,
             "method": method,
-            "path": path,
+            "path": _safe_path(path, vin),
             "params": params,
             "body": body,
             "error": str(err),
@@ -76,27 +84,60 @@ async def _probe(
 
 
 async def _research_vehicle(client: Any, vin: str, vehicle: dict[str, Any]) -> list[dict[str, Any]]:
-    """Probe known GWM cloud discovery/status endpoints without sending commands."""
+    """Probe known GWM cloud discovery/status endpoints without sending controls."""
     vehicle_id = vehicle.get("vehicleId")
     ownership = str(vehicle.get("ownership") or 1)
+    model_code = vehicle.get("modelCode")
+    vtype = vehicle.get("vtype")
     probes: list[dict[str, Any]] = []
 
-    async def get(path: str, params: dict[str, str] | None = None) -> None:
-        probes.append(await _probe(client, "GET", path, vin, params=params))
+    async def get(path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
+        result = await _probe(client, "GET", path, vin, params=params)
+        probes.append(result)
+        return result
 
-    async def post_query(path: str, body: dict[str, Any]) -> None:
-        # Only endpoints known from public clients as query/status reads are POSTed.
-        probes.append(await _probe(client, "POST", path, vin, body=body))
+    async def post_query(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        result = await _probe(client, "POST", path, vin, body=body)
+        probes.append(result)
+        return result
 
-    # Existing Russian API discovery reads.
+    # Russian v1 discovery/status reads.
     await get("/app-api/api/v1.0/vehicle/vehicleBasicsInfo", {"vin": vin})
+    await get("/app-api/api/v1.0/vehicle/vehicleBasicsInfo", {"vin": vin, "flag": "true"})
     await get("/app-api/api/v1.0/vehicle/findVehicleCapabilityItem", {"vin": vin, "userRole": ownership})
     await get("/app-api/api/v1.0/vehicle/getLastStatus", {"vin": vin, "seqNo": "", "modelId": ""})
-    if vehicle_id is not None:
-        await get("/app-api/api/v1.0/vehicle/getWeyVrcHistory", {"vin": vin, "vehicleId": str(vehicle_id)})
 
-    # Newer v3 endpoints observed in current GWM clients. GET requests are discovery-only.
+    # Remote-control history is a read query, but the backend requires POST.
+    for history_type in ("1", "2", "3"):
+        body: dict[str, Any] = {"vin": vin, "type": history_type, "pageNum": 1, "pageSize": 50}
+        if vehicle_id is not None:
+            body["vehicleId"] = vehicle_id
+        await post_query("/app-api/api/v1.0/vehicle/getWeyVrcHistory", body)
+
+    # Compound/one-button comfort templates. Listing and details are read-only queries.
+    template_list = await post_query(
+        "/app-api/api/v1.0/vehicle/getCompoundCommandTemplateList",
+        {"vin": vin},
+    )
+    template_data = template_list.get("data")
+    candidates: list[dict[str, Any]] = []
+    if isinstance(template_data, list):
+        candidates = [x for x in template_data if isinstance(x, dict)]
+    elif isinstance(template_data, dict):
+        for value in template_data.values():
+            if isinstance(value, list):
+                candidates.extend(x for x in value if isinstance(x, dict))
+    for template in candidates[:10]:
+        template_id = template.get("templateId") or template.get("id")
+        if template_id is not None:
+            await post_query(
+                "/app-api/api/v1.0/vehicle/getCompoundCommandTemplateInfo",
+                {"vin": vin, "templateId": template_id},
+            )
+
+    # Newer v3 routes. These are GET/read endpoints in public GWM clients.
     await get("/app-api/api/v3.0/vehicle/getLastStatus", {"vin": vin})
+    await get("/app-api/api/v3.0/vehicle/getLastStatus", {"vin": vin, "flag": "true"})
     await get("/app-api/api/v3.0/vehicle/remote-ctrl/config", {"vin": vin})
     await get("/app-api/api/v3.0/vehicle/remote-ctrl/result", {"vin": vin})
     await get(f"/app-api/api/v3.0/vehicle/remote-ctrl/subscribe/{vin}")
@@ -104,15 +145,22 @@ async def _research_vehicle(client: Any, vin: str, vehicle: dict[str, Any]) -> l
     await get("/app-api/api/v3.0/vehicle/switch/status", {"vin": vin})
     await get("/app-api/api/v3.0/vehicle/charge/setting", {"vin": vin})
 
-    # Public GWM implementations use these two as read/query POST endpoints.
-    await post_query("/app-api/api/v3.0/vehicle/remote-ctrl/config/query", {"vin": vin})
-    await post_query("/app-api/api/v3.0/vehicle/switch/status", {"vin": vin})
-
-    # Probe a few likely discovery variants, still without any control command fields.
+    # Known query/status POST routes, still no control command payloads.
+    base_body: dict[str, Any] = {"vin": vin}
     if vehicle_id is not None:
-        query_body = {"vin": vin, "vehicleId": vehicle_id}
-        await post_query("/app-api/api/v3.0/vehicle/remote-ctrl/config/query", query_body)
-        await post_query("/app-api/api/v3.0/vehicle/switch/status", query_body)
+        base_body["vehicleId"] = vehicle_id
+    await post_query("/app-api/api/v3.0/vehicle/remote-ctrl/config/query", dict(base_body))
+    await post_query("/app-api/api/v3.0/vehicle/switch/status", dict(base_body))
+
+    # Add model hints to query endpoints. Some regional gateways require them.
+    hinted = dict(base_body)
+    if model_code:
+        hinted["modelCode"] = model_code
+    if vtype:
+        hinted["vtype"] = vtype
+    if hinted != base_body:
+        await post_query("/app-api/api/v3.0/vehicle/remote-ctrl/config/query", hinted)
+        await post_query("/app-api/api/v3.0/vehicle/switch/status", hinted)
 
     return probes
 
