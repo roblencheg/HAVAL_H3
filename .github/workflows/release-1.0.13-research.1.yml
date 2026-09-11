@@ -1,0 +1,51 @@
+name: Release v1.0.13-research.1
+
+on:
+  push:
+    branches: [research-cloud-capabilities]
+    paths:
+      - '.github/workflows/release-1.0.13-research.1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/release-notes.md <<'EOF'
+          ## GWM RU 1.0.13 research.1
+
+          Исследовательская сборка для поиска скрытых возможностей российского облака GWM.
+
+          ### Что исследуем
+
+          - дополнительные v1/v3 endpoint'ы GWM;
+          - скрытые remote-control конфигурации;
+          - one-touch mode;
+          - switch/status;
+          - новые поля getLastStatus;
+          - возможные ACC / IGN / power-mode команды;
+          - другие возможности, не показанные текущим capability tree.
+
+          ### Безопасность
+
+          Сборка выполняет только read-only и query/status probes. Команды управления автомобилем для исследования не отправляются.
+
+          Использовать только для диагностики. После теста скачать диагностику Home Assistant и передать её для разбора.
+          EOF
+
+          gh release create v1.0.13-research.1 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target research-cloud-capabilities \
+            --title "v1.0.13-research.1" \
+            --notes-file /tmp/release-notes.md \
+            --prerelease
