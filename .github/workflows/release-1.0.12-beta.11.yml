@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.11
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.11.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.11 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.11 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.11" \
+            --prerelease \
+            --notes $'## More confirmed GWM telemetry\n\n- Mapped raw 2222001 as front-defrost state\n- Added eight capability-driven TPMS problem sensors: pressure and temperature alarms for each wheel\n- Added GPS-enabled binary state\n- Seat-heater level and windshield-heater mappings from beta.10 remain unchanged\n- No new remote-control payloads are sent in this build\n- Default command cooldown remains 5 seconds.'
