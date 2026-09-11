@@ -34,7 +34,7 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_command_time = 0.0
         self._command_status: dict[str, str] = {}
         self._command_diagnostics: dict[str, dict[str, Any]] = {}
-        self._optimistic_engine: dict[str, dict[str, Any]] = {}
+        self._confirmed_engine_state: dict[str, dict[str, Any]] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         data = await self.client.async_update()
@@ -52,16 +52,21 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if vin in self._command_diagnostics:
                 vehicle.setdefault("diagnostics", {})["last_command"] = self._command_diagnostics[vin]
             state = vehicle.setdefault("state", {})
-            optimistic = self._optimistic_engine.get(vin)
-            if optimistic and state.get("engine_on") is None:
-                is_on = bool(optimistic.get("is_on"))
-                expires_at = optimistic.get("expires_at")
+            confirmed = self._confirmed_engine_state.get(vin)
+            if confirmed and state.get("engine_on") is None:
+                is_on = bool(confirmed.get("is_on"))
+                expires_at = confirmed.get("expires_at")
+                source = str(confirmed.get("source") or "remote_command_result")
                 if is_on and expires_at and now >= float(expires_at):
                     is_on = False
-                    self._optimistic_engine[vin] = {"is_on": False, "source": "remote_start_timeout"}
+                    source = "remote_start_timeout"
+                    self._confirmed_engine_state[vin] = {
+                        "is_on": False,
+                        "source": source,
+                    }
                 state["engine_on"] = is_on
                 state["engine_state"] = 1 if is_on else 0
-                state["engine_state_source"] = "optimistic"
+                state["engine_state_source"] = source
                 state["vehicle_status"] = self._vehicle_status_from_state(state)
         primary_vin = data.get("vin")
         if primary_vin and primary_vin in self._command_status:
@@ -164,7 +169,8 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 vehicle.setdefault("diagnostics", {})["last_command"] = data
         self.async_update_listeners()
 
-    def _apply_optimistic_command_state(self, vin: str, instructions: dict) -> None:
+    def _apply_confirmed_command_state(self, vin: str, instructions: dict) -> None:
+        """Apply state inferred from a command only after GWM reports success."""
         engine = instructions.get("0x03") if isinstance(instructions, dict) else None
         if not isinstance(engine, dict):
             return
@@ -174,15 +180,15 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 operation_minutes = max(1, int(engine.get("operationTime", 15)))
             except (TypeError, ValueError):
                 operation_minutes = 15
-            self._optimistic_engine[vin] = {
+            self._confirmed_engine_state[vin] = {
                 "is_on": True,
                 "expires_at": time.time() + operation_minutes * 60,
-                "source": "remote_start",
+                "source": "remote_command_result",
             }
         elif switch_order == "2":
-            self._optimistic_engine[vin] = {
+            self._confirmed_engine_state[vin] = {
                 "is_on": False,
-                "source": "remote_stop",
+                "source": "remote_command_result",
             }
 
     async def async_execute_t5(
@@ -221,7 +227,7 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 },
             )
             raise
-        self._apply_optimistic_command_state(vin, instructions)
+        self._apply_confirmed_command_state(vin, instructions)
         self.set_command_status(vin, "Успешно")
         self._set_command_diagnostics(
             vin,
