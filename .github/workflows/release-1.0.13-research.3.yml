@@ -1,0 +1,52 @@
+name: Release v1.0.13-research.3
+
+on:
+  push:
+    branches: [research-cloud-capabilities]
+    paths:
+      - '.github/workflows/release-1.0.13-research.3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/release-notes.md <<'EOF'
+          ## GWM RU 1.0.13 research.3
+
+          Продолжение исследования российского GWM Cloud.
+
+          ### Что изменено
+
+          - исправлен метод для `getCompoundCommandTemplateList`: RU backend ожидает GET;
+          - добавлено чтение деталей найденных comfort templates;
+          - перебираются известные варианты идентификатора шаблона: `id`, `templateId`, `compoundCommandTemplateId`;
+          - сохранены read-only probes v1/v3 API;
+          - управляющие команды автомобилю не отправляются.
+
+          ### Цель
+
+          Получить реальные данные one-button comfort/compound templates и дополнительные подсказки по скрытым возможностям облака, включая power/ACC/IGN-направление.
+          EOF
+
+          if gh release view v1.0.13-research.3 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+
+          gh release create v1.0.13-research.3 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target research-cloud-capabilities \
+            --title "v1.0.13-research.3" \
+            --notes-file /tmp/release-notes.md \
+            --prerelease
