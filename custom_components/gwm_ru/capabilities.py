@@ -25,6 +25,8 @@ COMMAND_CAPABILITIES: dict[str, str] = {
     "close_sunroof": "1-1-7-2",
     "steering_wheel_heat_on": "1-1-21-1",
     "steering_wheel_heat_off": "1-1-21-2",
+    "windshield_heat_on": "1-1-22-1",
+    "windshield_heat_off": "1-1-22-2",
 }
 
 STATE_CAPABILITIES: dict[str, str] = {
