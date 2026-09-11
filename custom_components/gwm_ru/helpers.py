@@ -27,10 +27,21 @@ STATUS_ITEM_MAP: dict[str, str] = {
     "2210032": "rear_defroster_state",
     "2220001": "driver_seat_heater_state",
     "2220002": "passenger_seat_heater_state",
+    "2222001": "front_defrost_state",
     "2060016": "steering_wheel_heater_state",
     "2078020": "cabin_clean_state",
     "2202111": "windshield_heater_state",
     "2310001": "gps_switch_state",
+    # TPMS warning flags. These mappings are also used by other GWM cloud
+    # integrations and line up with capability groups 1-2-8 and 1-2-10.
+    "2102001": "tire_fl_pressure_alarm_state",
+    "2102002": "tire_fr_pressure_alarm_state",
+    "2102003": "tire_rl_pressure_alarm_state",
+    "2102004": "tire_rr_pressure_alarm_state",
+    "2102007": "tire_fl_temp_alarm_state",
+    "2102008": "tire_fr_temp_alarm_state",
+    "2102009": "tire_rl_temp_alarm_state",
+    "2102010": "tire_rr_temp_alarm_state",
 }
 
 
@@ -141,7 +152,17 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     state["steering_wheel_heater_on"] = _state_equals(state.get("steering_wheel_heater_state"), "1")
     state["cabin_clean_on"] = _state_equals(state.get("cabin_clean_state"), "1")
     state["windshield_heater_on"] = _state_equals(state.get("windshield_heater_state"), "1")
+    state["front_defrost_on"] = _state_equals(state.get("front_defrost_state"), "1")
     state["gps_enabled"] = _state_equals(state.get("gps_switch_state"), "1")
+
+    state["tire_fl_pressure_alarm"] = _state_equals(state.get("tire_fl_pressure_alarm_state"), "1")
+    state["tire_fr_pressure_alarm"] = _state_equals(state.get("tire_fr_pressure_alarm_state"), "1")
+    state["tire_rl_pressure_alarm"] = _state_equals(state.get("tire_rl_pressure_alarm_state"), "1")
+    state["tire_rr_pressure_alarm"] = _state_equals(state.get("tire_rr_pressure_alarm_state"), "1")
+    state["tire_fl_temp_alarm"] = _state_equals(state.get("tire_fl_temp_alarm_state"), "1")
+    state["tire_fr_temp_alarm"] = _state_equals(state.get("tire_fr_temp_alarm_state"), "1")
+    state["tire_rl_temp_alarm"] = _state_equals(state.get("tire_rl_temp_alarm_state"), "1")
+    state["tire_rr_temp_alarm"] = _state_equals(state.get("tire_rr_temp_alarm_state"), "1")
 
     engine_state = status.get("hyEngSts")
     state["engine_state"] = value_to_number(engine_state) if engine_state is not None else None
