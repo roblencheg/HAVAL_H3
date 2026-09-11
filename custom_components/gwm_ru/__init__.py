@@ -108,35 +108,26 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
 
             vehicle = coordinator.vehicle(vin) or {}
             car = vehicle.get("vehicle") or {}
-            state = vehicle.get("state") or {}
-            driver_level = int(state.get("driver_seat_heater_state") or 0)
-            passenger_level = int(state.get("passenger_seat_heater_state") or 0)
-            if cmd.get("seat") == "driver":
-                driver_level = level
-            else:
-                passenger_level = level
-
-            # Official APK: rudder == "2" means right-hand drive. T5 seat payload
-            # is physical left/right, while HA entities are driver/passenger.
             driver_is_right = str(car.get("rudder") or "1") == "2"
-            left_front = passenger_level if driver_is_right else driver_level
-            right_front = driver_level if driver_is_right else passenger_level
-            any_heat = left_front > 0 or right_front > 0
-            instructions = {
-                "0x0A": {
-                    "seat": {
-                        "operationMode": "1",  # APK/comfort template: heating
-                        "switchOrder": "1" if any_heat else "2",
-                        "operationTime": str(operation_time if any_heat else 0),
-                        "leftFront": str(left_front),
-                        "rightFront": str(right_front),
-                        "leftBack": "0",
-                        "rightBack": "0",
-                        "leftThirdRow": "0",
-                        "rightThirdRow": "0",
-                    }
-                }
+            if cmd.get("seat") == "driver":
+                physical_key = "rightFront" if driver_is_right else "leftFront"
+            else:
+                physical_key = "leftFront" if driver_is_right else "rightFront"
+
+            # Standalone T5 seat commands only include the seat being changed.
+            # Sending zero values for every other row/seat is rejected by H3 with
+            # resultCode 11. This shape also matches other working GWM T5 clients.
+            seat = {
+                "operationMode": "1",
+                "switchOrder": "1",
+                "operationTime": str(operation_time),
+                physical_key: str(level),
             }
+            if level == 0:
+                # A zero level with switchOrder=1 means "change this seat to off"
+                # without touching the other front seat.
+                seat["operationTime"] = "0"
+            instructions = {"0x0A": {"seat": seat}}
         else:
             instructions = copy.deepcopy(cmd["instructions"])
             if call.service == "rear_defrost_on":
