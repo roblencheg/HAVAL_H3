@@ -190,4 +190,48 @@ COMMANDS = {
             }
         },
     },
+    "windshield_heat_on": {
+        "key": "windshield_heat_on",
+        "name": "Включить обогрев лобового стекла",
+        "expected_remote_type": "0x2A",
+        "risk": "medium",
+        "icon": "mdi:car-defrost-front",
+        "instructions": {
+            "0x2A": {
+                "switchOrder": "1",
+                "operationTime": "15",
+            }
+        },
+    },
+    "windshield_heat_off": {
+        "key": "windshield_heat_off",
+        "name": "Выключить обогрев лобового стекла",
+        "expected_remote_type": "0x2A",
+        "risk": "medium",
+        "icon": "mdi:car-defrost-front",
+        "instructions": {
+            "0x2A": {
+                "switchOrder": "2",
+                "operationTime": "0",
+            }
+        },
+    },
+    "set_driver_seat_heat": {
+        "key": "set_driver_seat_heat",
+        "name": "Установить обогрев водительского сиденья",
+        "expected_remote_type": "0x0A",
+        "risk": "medium",
+        "icon": "mdi:car-seat-heater",
+        "dynamic": "seat_heat",
+        "seat": "driver",
+    },
+    "set_passenger_seat_heat": {
+        "key": "set_passenger_seat_heat",
+        "name": "Установить обогрев пассажирского сиденья",
+        "expected_remote_type": "0x0A",
+        "risk": "medium",
+        "icon": "mdi:car-seat-heater",
+        "dynamic": "seat_heat",
+        "seat": "passenger",
+    },
 }
