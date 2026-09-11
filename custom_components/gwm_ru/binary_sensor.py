@@ -45,11 +45,17 @@ BINARY_SENSORS: tuple[GwmRuBinarySensorDescription, ...] = (
     GwmRuBinarySensorDescription(key="passenger_seat_heater_on", state_key="passenger_seat_heater_on", name="Обогрев пассажирского сиденья", icon="mdi:car-seat-heater"),
     GwmRuBinarySensorDescription(key="steering_wheel_heater_on", state_key="steering_wheel_heater_on", name="Обогрев руля", icon="mdi:steering"),
     GwmRuBinarySensorDescription(key="cabin_clean_on", state_key="cabin_clean_on", name="Очистка воздуха салона", icon="mdi:air-filter"),
-    # These capabilities are known from the official app/tree, but their raw
-    # telemetry item codes are still being identified. The entities are
-    # intentionally present as unknown rather than silently hidden.
     GwmRuBinarySensorDescription(key="windshield_heater_on", state_key="windshield_heater_on", name="Обогрев лобового стекла", icon="mdi:car-defrost-front"),
     GwmRuBinarySensorDescription(key="front_defrost_on", state_key="front_defrost_on", name="Передний дефрост", icon="mdi:car-defrost-front"),
+    GwmRuBinarySensorDescription(key="gps_enabled", state_key="gps_enabled", name="GPS разрешён", icon="mdi:crosshairs-gps"),
+    GwmRuBinarySensorDescription(key="tire_fl_pressure_alarm", state_key="tire_fl_pressure_alarm", name="Ошибка давления передней левой шины", device_class=BinarySensorDeviceClass.PROBLEM, icon="mdi:car-tire-alert"),
+    GwmRuBinarySensorDescription(key="tire_fr_pressure_alarm", state_key="tire_fr_pressure_alarm", name="Ошибка давления передней правой шины", device_class=BinarySensorDeviceClass.PROBLEM, icon="mdi:car-tire-alert"),
+    GwmRuBinarySensorDescription(key="tire_rl_pressure_alarm", state_key="tire_rl_pressure_alarm", name="Ошибка давления задней левой шины", device_class=BinarySensorDeviceClass.PROBLEM, icon="mdi:car-tire-alert"),
+    GwmRuBinarySensorDescription(key="tire_rr_pressure_alarm", state_key="tire_rr_pressure_alarm", name="Ошибка давления задней правой шины", device_class=BinarySensorDeviceClass.PROBLEM, icon="mdi:car-tire-alert"),
+    GwmRuBinarySensorDescription(key="tire_fl_temp_alarm", state_key="tire_fl_temp_alarm", name="Ошибка температуры передней левой шины", device_class=BinarySensorDeviceClass.PROBLEM, icon="mdi:thermometer-alert"),
+    GwmRuBinarySensorDescription(key="tire_fr_temp_alarm", state_key="tire_fr_temp_alarm", name="Ошибка температуры передней правой шины", device_class=BinarySensorDeviceClass.PROBLEM, icon="mdi:thermometer-alert"),
+    GwmRuBinarySensorDescription(key="tire_rl_temp_alarm", state_key="tire_rl_temp_alarm", name="Ошибка температуры задней левой шины", device_class=BinarySensorDeviceClass.PROBLEM, icon="mdi:thermometer-alert"),
+    GwmRuBinarySensorDescription(key="tire_rr_temp_alarm", state_key="tire_rr_temp_alarm", name="Ошибка температуры задней правой шины", device_class=BinarySensorDeviceClass.PROBLEM, icon="mdi:thermometer-alert"),
 )
 
 
