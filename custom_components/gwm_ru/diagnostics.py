@@ -50,7 +50,7 @@ async def _probe(
     path: str,
     vin: str,
     *,
-    params: dict[str, str] | None = None,
+    params: dict[str, Any] | None = None,
     body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one explicitly read/query-only research request."""
@@ -91,7 +91,7 @@ async def _research_vehicle(client: Any, vin: str, vehicle: dict[str, Any]) -> l
     vtype = vehicle.get("vtype")
     probes: list[dict[str, Any]] = []
 
-    async def get(path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
+    async def get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         result = await _probe(client, "GET", path, vin, params=params)
         probes.append(result)
         return result
@@ -114,11 +114,17 @@ async def _research_vehicle(client: Any, vin: str, vehicle: dict[str, Any]) -> l
             body["vehicleId"] = vehicle_id
         await post_query("/app-api/api/v1.0/vehicle/getWeyVrcHistory", body)
 
-    # Compound/one-button comfort templates. Listing and details are read-only queries.
-    template_list = await post_query(
+    # Compound/one-button comfort templates. The RU backend requires GET here.
+    template_list = await get(
         "/app-api/api/v1.0/vehicle/getCompoundCommandTemplateList",
-        {"vin": vin},
+        {"vin": vin, "userRole": ownership},
     )
+    if not template_list.get("ok"):
+        template_list = await get(
+            "/app-api/api/v1.0/vehicle/getCompoundCommandTemplateList",
+            {"vin": vin},
+        )
+
     template_data = template_list.get("data")
     candidates: list[dict[str, Any]] = []
     if isinstance(template_data, list):
@@ -127,15 +133,22 @@ async def _research_vehicle(client: Any, vin: str, vehicle: dict[str, Any]) -> l
         for value in template_data.values():
             if isinstance(value, list):
                 candidates.extend(x for x in value if isinstance(x, dict))
-    for template in candidates[:10]:
-        template_id = template.get("templateId") or template.get("id")
-        if template_id is not None:
-            await post_query(
-                "/app-api/api/v1.0/vehicle/getCompoundCommandTemplateInfo",
-                {"vin": vin, "templateId": template_id},
-            )
 
-    # Newer v3 routes. These are GET/read endpoints in public GWM clients.
+    # Query each discovered comfort template using all observed identifier names.
+    for template in candidates[:10]:
+        template_id = template.get("id") or template.get("templateId") or template.get("compoundCommandTemplateId")
+        if template_id is None:
+            continue
+        for params in (
+            {"id": str(template_id), "vin": vin},
+            {"templateId": str(template_id), "vin": vin},
+            {"compoundCommandTemplateId": str(template_id), "vin": vin},
+        ):
+            detail = await get("/app-api/api/v1.0/vehicle/getCompoundCommandTemplateInfo", params)
+            if detail.get("ok") and detail.get("data") is not None:
+                break
+
+    # Newer v3 routes. On RU they currently respond SUCCESS/null, which is itself useful.
     await get("/app-api/api/v3.0/vehicle/getLastStatus", {"vin": vin})
     await get("/app-api/api/v3.0/vehicle/getLastStatus", {"vin": vin, "flag": "true"})
     await get("/app-api/api/v3.0/vehicle/remote-ctrl/config", {"vin": vin})
@@ -145,14 +158,13 @@ async def _research_vehicle(client: Any, vin: str, vehicle: dict[str, Any]) -> l
     await get("/app-api/api/v3.0/vehicle/switch/status", {"vin": vin})
     await get("/app-api/api/v3.0/vehicle/charge/setting", {"vin": vin})
 
-    # Known query/status POST routes, still no control command payloads.
+    # Query/status POST routes, still no control payloads.
     base_body: dict[str, Any] = {"vin": vin}
     if vehicle_id is not None:
         base_body["vehicleId"] = vehicle_id
     await post_query("/app-api/api/v3.0/vehicle/remote-ctrl/config/query", dict(base_body))
     await post_query("/app-api/api/v3.0/vehicle/switch/status", dict(base_body))
 
-    # Add model hints to query endpoints. Some regional gateways require them.
     hinted = dict(base_body)
     if model_code:
         hinted["modelCode"] = model_code
