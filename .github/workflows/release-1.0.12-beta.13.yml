@@ -1,0 +1,31 @@
+name: Release v1.0.12-beta.13
+
+on:
+  push:
+    branches:
+      - beta-capabilities
+    paths:
+      - .github/workflows/release-1.0.12-beta.13.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.12-beta.13 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.0.12-beta.13 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12-beta.13" \
+            --prerelease \
+            --notes $'## Seat command refinement and engine source cleanup\n\n- Refined standalone seat-heater T5 payload: only the selected physical front seat is sent, instead of forcing all other seats/rows to zero\n- Preserves left/right mapping via the vehicle rudder flag\n- Engine state inferred after a successful remote start/stop is now marked as `remote_command_result` instead of `optimistic`\n- Existing working engine, steering-wheel heater and windshield-heater commands are unchanged\n- Default command cooldown remains 5 seconds.'
