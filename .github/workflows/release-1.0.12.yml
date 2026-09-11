@@ -1,0 +1,26 @@
+name: Release v1.0.12
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/release-1.0.12.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v1.0.12 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.0.12" \
+            --notes "## GWM RU 1.0.12\n\nStable release of the capability-driven GWM RU integration.\n\n- Per-vehicle capability discovery from the GWM cloud\n- Remote engine start/stop, lock, trunk, climate and supported comfort controls\n- Working steering-wheel heater and windshield-heater controls\n- Driver and passenger seat-heater levels 0-3\n- TPMS pressure/temperature alarm entities\n- Front-defrost, GPS and remote-command history state support\n- 5-second command cooldown\n- Engine state after confirmed remote start/stop is marked as remote_command_result\n- Stable diagnostics no longer run research probes\n- Additional identifiers are redacted from diagnostics"
