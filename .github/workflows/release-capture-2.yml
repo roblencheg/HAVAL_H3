@@ -1,0 +1,55 @@
+name: Release v1.0.13-capture.2
+
+on:
+  push:
+    branches:
+      - feature/protocol-capture
+    paths:
+      - .github/workflows/release-capture-2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate version syntax and manifest
+        run: |
+          test "$(python -c 'import json; print(json.load(open("custom_components/gwm_ru/manifest.json"))["version"])')" = '1.0.13-capture.2'
+          python -m compileall -q custom_components/gwm_ru tests
+          python -m json.tool custom_components/gwm_ru/manifest.json > /dev/null
+      - name: Test protocol capture
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Publish test-only prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.13-capture.2 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo 'Prerelease already exists; refusing to replace it'
+            exit 1
+          fi
+          cat > /tmp/capture-release-notes.md <<'NOTES'
+          ## GWM RU 1.0.13 capture.2 (experimental)
+
+          Read-only ignition/HUT telemetry research based on field names found in moryoav/ha-gwm-ev and chaosl1996/gwm_cn_ha.
+
+          - Capture numeric candidates `vehicleStatusInfo.power`, `ignitionStatus`, `engineSts`, `hutSwitchOn`, `drivingStatus` and related fields only when present
+          - Distinguish fresh, cached/out-of-order and unknown-age cloud samples by `acquisitionTime`; suppress changes from cached samples
+          - Continue to capture `powerGear` and `quickSettings` as configuration, not confirmed ignition state
+          - Source-specific, allowlisted JSONL diagnostics; never save raw responses, VIN or credentials
+          - Only GET status/config queries while explicitly recording. No T5 commands, climate activation, CAN or ACC control
+          - Procedure and caveats: docs/protocol-capture.md
+
+          No remote ignition command has been discovered or enabled. This is a prerelease for controlled testing. Stable v1.0.12 is unchanged.
+          NOTES
+          gh release create v1.0.13-capture.2 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title 'v1.0.13-capture.2' \
+            --prerelease \
+            --notes-file /tmp/capture-release-notes.md
