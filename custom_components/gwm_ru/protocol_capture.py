@@ -8,6 +8,7 @@ are written. Only explicitly allowlisted telemetry and configuration fields.
 
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -26,13 +27,16 @@ MAX_MARKER_LENGTH = 80
 STATE_KEYS = frozenset({"engine_state", "engine_on", "engine_state_source", "climate_state", "lock_state", "tbox_status", "tbox_online"})
 BASICS_KEYS = frozenset({"powerGear", "quickSettings"})
 STATUS_KEYS = frozenset({"acquisitionTime", "updateTime", "serviceStatus", "command"})
+STATE_SOURCES = frozenset({"remote_command_result", "remote_start_timeout", "telemetry"})
 
 
-def _safe_value(value: Any) -> str | int | float | bool | None:
-    """Reject arbitrary cloud objects/long strings that could contain identifiers."""
+def _safe_numeric(value: Any) -> int | float | bool | str | None:
+    """Keep short numeric telemetry only, never arbitrary identifier strings."""
     if value is None or isinstance(value, (bool, int, float)):
         return value
-    if isinstance(value, str) and len(value) <= 48 and all(ch.isalnum() or ch in " -_." for ch in value):
+    if not isinstance(value, str) or len(value) > 14 or not value:
+        return None
+    if value.lstrip("-").replace(".", "", 1).isdigit():
         return value
     return None
 
@@ -53,10 +57,11 @@ def _append_record(path: Path, record: dict[str, Any]) -> None:
 
 
 def _read_records(path: Path) -> dict[str, Any]:
-    """Bounded export preserving the first baseline and latest records."""
+    """Export the newest capture session with its own first baseline."""
     baseline = None
     recent: deque[dict[str, Any]] = deque(maxlen=MAX_RECORDS)
     count = 0
+    session_count = 0
     if not path.is_file():
         return {"records": [], "total": 0, "truncated": False}
     with path.open("r", encoding="utf-8") as handle:
@@ -68,12 +73,15 @@ def _read_records(path: Path) -> dict[str, Any]:
             if not isinstance(record, dict) or record.get("schema") != 1:
                 continue
             count += 1
-            if baseline is None and record.get("type") == "refresh" and record.get("baseline"):
+            if record.get("type") == "refresh" and record.get("baseline"):
                 baseline = record
-            else:
+                recent.clear()
+                session_count = 1
+            elif baseline is not None:
                 recent.append(record)
+                session_count += 1
     records = ([baseline] if baseline is not None else []) + list(recent)
-    return {"records": records, "total": count, "truncated": count > len(records)}
+    return {"records": records, "total": count, "session_total": session_count, "truncated": session_count > len(records)}
 
 
 class GwmRuCaptureCoordinator(GwmRuCoordinator):
@@ -84,6 +92,7 @@ class GwmRuCaptureCoordinator(GwmRuCoordinator):
         self.capture_enabled = False
         self._capture_baselines: dict[str, dict[str, Any]] = {}
         self._capture_sequence: dict[str, int] = {}
+        self._capture_lock = asyncio.Lock()
         self.capture_last_error: str | None = None
 
     def _capture_path(self, vin: str) -> Path:
@@ -103,22 +112,22 @@ class GwmRuCaptureCoordinator(GwmRuCoordinator):
     async def capture_marker(self, label: str, vin: str | None = None) -> None:
         if not self.capture_enabled:
             raise HomeAssistantError("Сначала включите запись протокола")
-        label = " ".join(str(label).split())
+        label = " ".join(label.split())
         if not label or len(label) > MAX_MARKER_LENGTH:
             raise HomeAssistantError("Метка должна содержать от 1 до 80 символов")
-        # Markers are supplied by the user; do not allow a VIN in a marker.
         selected = self.resolve_vin(vin)
         if not selected or selected not in {v.get("vin") for v in self.vehicles}:
             raise HomeAssistantError("Автомобиль не найден")
-        if any(vin_value and vin_value in label for vin_value in (v.get("vin") for v in self.vehicles)):
+        if any(value and value in label for value in (v.get("vin") for v in self.vehicles)):
             raise HomeAssistantError("Не включайте VIN в метку")
         await self._capture_append(selected, {"schema": 1, "type": "marker", "time": datetime.now(timezone.utc).isoformat(), "label": label})
 
     async def _capture_append(self, vin: str, record: dict[str, Any]) -> None:
-        sequence = self._capture_sequence.get(vin, 0) + 1
-        record["seq"] = sequence
-        await self.hass.async_add_executor_job(_append_record, self._capture_path(vin), record)
-        self._capture_sequence[vin] = sequence
+        async with self._capture_lock:
+            sequence = self._capture_sequence.get(vin, 0) + 1
+            record["seq"] = sequence
+            await self.hass.async_add_executor_job(_append_record, self._capture_path(vin), record)
+            self._capture_sequence[vin] = sequence
 
     async def _async_update_data(self) -> dict[str, Any]:
         data = await super()._async_update_data()
@@ -138,20 +147,31 @@ class GwmRuCaptureCoordinator(GwmRuCoordinator):
         diagnostics = vehicle.get("diagnostics") or {}
         raw_items = diagnostics.get("status_items") or []
         signals = {
-            str(item["code"]): _safe_value(item.get("value"))
+            str(item["code"]): _safe_numeric(item.get("value"))
             for item in raw_items
             if isinstance(item, dict) and str(item.get("code", "")).isdigit()
             and len(str(item.get("code"))) <= 12
         }
-        state = {key: _safe_value(value) for key, value in (vehicle.get("state") or {}).items() if key in STATE_KEYS}
-        meta = {key: _safe_value(value) for key, value in (diagnostics.get("status_top_level") or {}).items() if key in STATUS_KEYS}
+        raw_state = vehicle.get("state") or {}
+        state = {key: _safe_numeric(value) for key, value in raw_state.items() if key in STATE_KEYS and key != "engine_state_source"}
+        if raw_state.get("engine_state_source") in STATE_SOURCES:
+            state["engine_state_source"] = raw_state["engine_state_source"]
+        raw_meta = diagnostics.get("status_top_level") or {}
+        meta = {key: _safe_numeric(value) for key, value in raw_meta.items() if key in STATUS_KEYS and key != "command"}
+        if raw_meta.get("command") == "STATUS":
+            meta["command"] = "STATUS"
         basics: dict[str, Any] = {}
         # Only a GET, and only while a user-initiated capture is running.
         try:
             payload = await self.client._request("GET", ENDPOINT_VEHICLE_BASICS_INFO, params={"vin": vin}, vin_header=vin)
             config = (payload.get("data") or {}).get("config") or {}
             if isinstance(config, dict):
-                basics = {key: _safe_value(config.get(key)) for key in BASICS_KEYS if key in config}
+                for key in BASICS_KEYS:
+                    value = config.get(key)
+                    if key == "quickSettings" and isinstance(value, str) and len(value) <= 30 and all(char in "0123456789," for char in value):
+                        basics[key] = value
+                    elif key == "powerGear" and key in config:
+                        basics[key] = _safe_numeric(value)
         except Exception:
             pass
         current = {"signals": signals, "state": state, "status_meta": meta, "vehicle_basics": basics}
