@@ -12,6 +12,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import GwmRuApiClient
+from .capture_services import register_capture_services, unregister_capture_services
 from .commands import COMMANDS
 from .const import (
     CONF_COMMAND_COOLDOWN,
@@ -31,7 +32,7 @@ from .const import (
     LEGACY_COMMAND_COOLDOWN,
     PLATFORMS,
 )
-from .coordinator import GwmRuCoordinator
+from .protocol_capture import GwmRuCaptureCoordinator
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -53,7 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         country=data.get(CONF_COUNTRY, DEFAULT_COUNTRY),
         country_code=data.get(CONF_COUNTRY_CODE, DEFAULT_COUNTRY_CODE),
     )
-    coordinator = GwmRuCoordinator(
+    coordinator = GwmRuCaptureCoordinator(
         hass,
         client,
         int(options.get(CONF_POLL_INTERVAL, data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL))),
@@ -67,10 +68,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _register_services(hass, coordinator, entry)
+    register_capture_services(hass)
     return True
 
 
-def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry: ConfigEntry) -> None:
+def _register_services(hass: HomeAssistant, coordinator: GwmRuCaptureCoordinator, entry: ConfigEntry) -> None:
     def _get_security_pin(call: ServiceCall) -> str | None:
         return call.data.get(CONF_SECURITY_PIN) or entry.options.get(CONF_SECURITY_PIN) or entry.data.get(CONF_SECURITY_PIN) or None
 
@@ -156,4 +158,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        unregister_capture_services(hass)
     return unload_ok
