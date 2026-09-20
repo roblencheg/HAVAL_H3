@@ -1,0 +1,53 @@
+name: Release v1.0.13-capture.1
+
+on:
+  push:
+    branches:
+      - feature/protocol-capture
+    paths:
+      - .github/workflows/release-capture-1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate syntax and manifest
+        run: |
+          python -m compileall -q custom_components/gwm_ru tests
+          python -m json.tool custom_components/gwm_ru/manifest.json > /dev/null
+      - name: Test capture logic
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Publish prerelease only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.13-capture.1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo 'Prerelease already exists; refusing to replace it'
+            exit 1
+          fi
+          cat > /tmp/capture-release-notes.md <<'NOTES'
+          ## GWM RU 1.0.13 capture.1 (experimental)
+
+          Opt-in per-vehicle GWM Cloud protocol recording for ACC/IGN research.
+
+          - START, REFRESH, MARKER and STOP Home Assistant actions
+          - Local JSONL baseline and telemetry diffs; redacted diagnostics export
+          - Read-only GET of vehicleBasicsInfo while recording
+          - No ACC/IGN control command, no CAN intervention, no T5 commands issued by capture
+          - Installation and experiment steps: docs/protocol-capture.md
+
+          This is a test-only prerelease; stable v1.0.12 remains unchanged.
+          NOTES
+          gh release create v1.0.13-capture.1 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title 'v1.0.13-capture.1' \
+            --prerelease \
+            --notes-file /tmp/capture-release-notes.md
