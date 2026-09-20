@@ -8,7 +8,12 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import DOMAIN
 from .protocol_capture import GwmRuCaptureCoordinator
 
-CAPTURE_SERVICES = ("protocol_capture_start", "protocol_capture_stop", "protocol_capture_marker")
+CAPTURE_SERVICES = (
+    "protocol_capture_start",
+    "protocol_capture_stop",
+    "protocol_capture_marker",
+    "protocol_capture_refresh",
+)
 
 
 def register_capture_services(hass: HomeAssistant) -> None:
@@ -39,6 +44,10 @@ def register_capture_services(hass: HomeAssistant) -> None:
             if not isinstance(label, str):
                 raise HomeAssistantError("Укажите текстовую метку label")
             await coordinator.capture_marker(label, call.data.get("vin"))
+        elif call.service == "protocol_capture_refresh":
+            if not coordinator.capture_enabled:
+                raise HomeAssistantError("Сначала включите запись протокола")
+            await coordinator.async_request_refresh()
         else:
             raise HomeAssistantError("Неизвестная команда записи протокола")
 
