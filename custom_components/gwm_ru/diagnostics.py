@@ -10,6 +10,8 @@ TO_REDACT = {
     "password",
     "security_pin",
     "accessToken",
+    "refreshToken",
+    "securityPassword",
     "token",
     "vin",
     "showedVin",
@@ -23,10 +25,13 @@ TO_REDACT = {
     "latitude",
     "longitude",
     "id",
+    "userId",
     "templateId",
     "shareId",
     "vehicleId",
     "unique_id",
+    "seqNo",
+    "hwCommandId",
 }
 
 
@@ -44,5 +49,6 @@ async def async_get_config_entry_diagnostics(
             "unique_id": entry.unique_id,
         },
         "coordinator": coordinator.data,
+        "protocol_capture": await coordinator.async_capture_diagnostics(),
     }
     return async_redact_data(data, TO_REDACT)
