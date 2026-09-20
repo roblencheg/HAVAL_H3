@@ -1,9 +1,10 @@
-"""Opt-in, per-vehicle protocol capture for controlled GWM telemetry experiments.
+"""Opt-in per-vehicle GWM telemetry capture; never sends vehicle commands.
 
-Based on the protocol-capture concept in IndeecDen/ha-gwm-jolion (MIT).
+Inspired by IndeecDen/ha-gwm-jolion (MIT).
 Copyright (c) 2026 IndeecDen. Copyright (c) 2026 roblencheg.
-No credentials, VIN, position, IMSI, device identifiers or entire cloud responses
-are written. Only explicitly allowlisted telemetry and configuration fields.
+The candidate field names are research references from moryoav/ha-gwm-ev
+and chaosl1996/gwm_cn_ha; their meanings are not validated on RU H3.
+Only allowlisted numeric/status fields are written; no raw cloud payloads.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import ENDPOINT_VEHICLE_BASICS_INFO
+from .const import ENDPOINT_LAST_STATUS, ENDPOINT_VEHICLE_BASICS_INFO
 from .coordinator import GwmRuCoordinator
 
 MAX_RECORDS = 500
@@ -28,10 +29,13 @@ STATE_KEYS = frozenset({"engine_state", "engine_on", "engine_state_source", "cli
 BASICS_KEYS = frozenset({"powerGear", "quickSettings"})
 STATUS_KEYS = frozenset({"acquisitionTime", "updateTime", "serviceStatus", "command"})
 STATE_SOURCES = frozenset({"remote_command_result", "remote_start_timeout", "telemetry"})
+# Exact names from other regional GWM integrations: candidates, NOT verified H3 signals.
+POWER_FIELD_NAMES = frozenset({"power", "ignitionstatus", "enginests", "drivingstatus", "hutswitchon", "gpsswitchon", "hcupowertrainsts", "tboxstatus"})
+POWER_NODES = ("root", "vehicleStatusInfo", "statusInfo")
 
 
 def _safe_numeric(value: Any) -> int | float | bool | str | None:
-    """Keep short numeric telemetry only, never arbitrary identifier strings."""
+    """Keep bounded numeric telemetry only, never identifiers or arbitrary text."""
     if value is None or isinstance(value, (bool, int, float)):
         return value
     if not isinstance(value, str) or len(value) > 14 or not value:
@@ -47,6 +51,42 @@ def _diff(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]
         for key in sorted(before.keys() | after.keys())
         if before.get(key) != after.get(key)
     ]
+
+
+def _power_fields(data: Any) -> dict[str, Any]:
+    """Return ONLY named non-identifying candidates, case-insensitively.
+
+    A missing field means it was absent, not that it was OFF. No guessed enums.
+    """
+    if not isinstance(data, dict):
+        return {}
+    nodes: list[tuple[str, dict[str, Any]]] = [("root", data)]
+    for key, value in data.items():
+        if isinstance(key, str) and key.casefold() in {"vehiclestatusinfo", "statusinfo"} and isinstance(value, dict):
+            nodes.append(("vehicleStatusInfo" if key.casefold() == "vehiclestatusinfo" else "statusInfo", value))
+    fields: dict[str, Any] = {}
+    for prefix, node in nodes:
+        for key, value in node.items():
+            if not isinstance(key, str) or key.casefold() not in POWER_FIELD_NAMES:
+                continue
+            safe_value = _safe_numeric(value)
+            if safe_value is not None:
+                fields[f"{prefix}.{key.casefold()}"] = safe_value
+    return fields
+
+
+def _freshness(previous: dict[str, Any] | None, current: dict[str, Any]) -> str:
+    """Cloud acquisition timestamp, not HTTP success, establishes a new sample."""
+    if previous is None:
+        return "baseline"
+    earlier = previous["status_meta"].get("acquisitionTime")
+    latest = current["status_meta"].get("acquisitionTime")
+    if isinstance(earlier, (str, int)) and isinstance(latest, (str, int)):
+        try:
+            return "fresh" if int(latest) > int(earlier) else "cached_or_out_of_order"
+        except ValueError:
+            pass
+    return "unknown"
 
 
 def _append_record(path: Path, record: dict[str, Any]) -> None:
@@ -70,7 +110,7 @@ def _read_records(path: Path) -> dict[str, Any]:
                 record = json.loads(line)
             except (ValueError, TypeError):
                 continue
-            if not isinstance(record, dict) or record.get("schema") != 1:
+            if not isinstance(record, dict) or record.get("schema") not in {1, 2}:
                 continue
             count += 1
             if record.get("type") == "refresh" and record.get("baseline"):
@@ -120,7 +160,7 @@ class GwmRuCaptureCoordinator(GwmRuCoordinator):
             raise HomeAssistantError("Автомобиль не найден")
         if any(value and value in label for value in (v.get("vin") for v in self.vehicles)):
             raise HomeAssistantError("Не включайте VIN в метку")
-        await self._capture_append(selected, {"schema": 1, "type": "marker", "time": datetime.now(timezone.utc).isoformat(), "label": label})
+        await self._capture_append(selected, {"schema": 2, "type": "marker", "time": datetime.now(timezone.utc).isoformat(), "label": label})
 
     async def _capture_append(self, vin: str, record: dict[str, Any]) -> None:
         async with self._capture_lock:
@@ -161,7 +201,7 @@ class GwmRuCaptureCoordinator(GwmRuCoordinator):
         if raw_meta.get("command") == "STATUS":
             meta["command"] = "STATUS"
         basics: dict[str, Any] = {}
-        # Only a GET, and only while a user-initiated capture is running.
+        # Read-only GETs only while the user explicitly records. Never store responses.
         try:
             payload = await self.client._request("GET", ENDPOINT_VEHICLE_BASICS_INFO, params={"vin": vin}, vin_header=vin)
             config = (payload.get("data") or {}).get("config") or {}
@@ -174,18 +214,37 @@ class GwmRuCaptureCoordinator(GwmRuCoordinator):
                         basics[key] = _safe_numeric(value)
         except Exception:
             pass
-        current = {"signals": signals, "state": state, "status_meta": meta, "vehicle_basics": basics}
+        power_fields: dict[str, Any] = {}
+        power_probe = "unavailable"
+        try:
+            response = await self.client._request(
+                "GET", ENDPOINT_LAST_STATUS,
+                params={"vin": vin, "seqNo": "", "modelId": ""}, vin_header=vin,
+            )
+            power_fields = _power_fields(response.get("data"))
+            power_probe = "ok"
+        except Exception:
+            power_probe = "request_failed"
+        current = {
+            "signals": signals, "state": state, "status_meta": meta,
+            "vehicle_basics": basics, "power_fields": power_fields,
+        }
         previous = self._capture_baselines.get(vin)
+        freshness = _freshness(previous, current)
+        compare = previous is not None and freshness == "fresh"
         record = {
-            "schema": 1,
+            "schema": 2,
             "type": "refresh",
             "time": datetime.now(timezone.utc).isoformat(),
             "baseline": previous is None,
+            "freshness": freshness,
+            "power_probe": power_probe,
             **current,
-            "changes": {} if previous is None else {key: _diff(previous[key], current[key]) for key in current},
+            "changes": {key: _diff(previous[key], current[key]) for key in current} if compare else {},
         }
         await self._capture_append(vin, record)
-        self._capture_baselines[vin] = current
+        if previous is None or freshness == "fresh":
+            self._capture_baselines[vin] = current
 
     async def async_capture_diagnostics(self) -> dict[str, Any]:
         """Read only known-vehicle files; never expose VIN or file paths."""
