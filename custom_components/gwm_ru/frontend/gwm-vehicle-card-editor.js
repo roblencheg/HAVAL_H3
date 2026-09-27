@@ -1,6 +1,6 @@
-/* GWM RU primary card visual editor v0.1.0-beta.27 */
+/* GWM RU primary card visual editor v0.1.0-beta.28 */
 (() => {
-  const CARD_VERSION = "0.1.0-beta.27";
+  const CARD_VERSION = "0.1.0-beta.28";
 
   const CONTROL_OPTIONS = [
     ["engine", "Двигатель"],
