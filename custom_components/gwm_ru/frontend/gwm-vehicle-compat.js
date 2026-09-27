@@ -4,6 +4,11 @@
   const SAFE_CAPABILITIES = new Set([
     "seat_heat_driver",
     "seat_heat_passenger",
+    "sunroof",
+    "sunshade",
+    "steering_wheel_heat",
+    "rear_defrost",
+    "front_windscreen_heat",
   ]);
   const SAFE_REMOTE_CONTROLS = new Set([
     "seat_heating",
@@ -12,6 +17,10 @@
     "climate",
     "trunk",
     "refresh",
+    "steering",
+    "rear_defrost",
+    "sunroof",
+    "sunshade",
   ]);
   const SAFE_REMOTE_STATUSES = new Set([
     "engine",
