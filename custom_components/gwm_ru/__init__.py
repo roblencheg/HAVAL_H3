@@ -45,11 +45,11 @@ _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 FRONTEND_ASSETS = (
-    (FRONTEND_DIR / "gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js?v=1.1.0-beta.1"),
-    (FRONTEND_DIR / "gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js?v=1.1.0-beta.1"),
-    (FRONTEND_DIR / "gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js?v=1.1.0-beta.1"),
-    (FRONTEND_DIR / "gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js?v=1.1.0-beta.1"),
-    (FRONTEND_DIR / "gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js?v=1.1.0-beta.1"),
+    (FRONTEND_DIR / "gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js?v=1.1.0-beta.2"),
+    (FRONTEND_DIR / "gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js?v=1.1.0-beta.2"),
+    (FRONTEND_DIR / "gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js?v=1.1.0-beta.2"),
+    (FRONTEND_DIR / "gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js?v=1.1.0-beta.2"),
+    (FRONTEND_DIR / "gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js?v=1.1.0-beta.2"),
 )
 DATA_FRONTEND_REGISTERED = "_frontend_registered"
 
