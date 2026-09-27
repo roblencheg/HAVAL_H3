@@ -1,6 +1,6 @@
-/* GWM RU Card v0.1.0-beta.25 */
+/* GWM RU Card v0.1.0-beta.26 */
 (() => {
-  const CARD_VERSION = "0.1.0-beta.25";
+  const CARD_VERSION = "0.1.0-beta.26";
   const INTEGRATION = "gwm_ru";
 
   const SUFFIX = {
@@ -144,9 +144,7 @@
         }
 
         const gwmEntries = this._entityRegistry.filter(
-          (entry) =>
-            entry.platform === INTEGRATION ||
-            (entry.config_entry_id && this._isGwmUniqueId(entry.unique_id))
+          (entry) => entry.platform === INTEGRATION
         );
 
         if (!deviceId) {
@@ -289,21 +287,8 @@
 
     _headerTitle() {
       if (this._config.title) return String(this._config.title);
-
-      const model = String(this._device?.model || "автомобиля GWM").trim();
-      const apiName = String(this._device?.name || "").trim();
       const drivetrain = this._drivetrain();
-      const parts = [model];
-
-      if (
-        apiName &&
-        apiName.toLocaleLowerCase() !== model.toLocaleLowerCase() &&
-        apiName.toLocaleLowerCase() !== "gwm vehicle"
-      ) {
-        parts.push(apiName);
-      }
-      if (drivetrain) parts.push(drivetrain);
-      return parts.join(" ");
+      return drivetrain ? `Haval ${drivetrain}` : "Haval";
     }
 
     _openWindows() {
