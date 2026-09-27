@@ -1,6 +1,6 @@
-/* GWM RU primary card visual editor v0.1.0-beta.26 */
+/* GWM RU primary card visual editor v0.1.0-beta.27 */
 (() => {
-  const CARD_VERSION = "0.1.0-beta.26";
+  const CARD_VERSION = "0.1.0-beta.27";
 
   const CONTROL_OPTIONS = [
     ["engine", "Двигатель"],
@@ -193,7 +193,15 @@
           .check.unavailable { opacity:.5; }
           .note { padding:10px 12px; border-radius:10px; background:color-mix(in srgb,var(--primary-color) 7%,transparent); color:var(--secondary-text-color); font-size:12px; line-height:1.4; }
           @media (max-width:520px) { .grid,.fields { grid-template-columns:1fr; } }
-        </style>
+        
+          /* Match native Tile/Bubble/Mushroom editor density */
+          .editor{gap:16px}
+          h4{font-size:14px;font-weight:600}
+          input[type="text"],input[type="number"]{min-height:40px;border-radius:20px;padding:0 12px;background:var(--secondary-background-color,var(--card-background-color));font-size:13px}
+          .grid{gap:8px 12px}
+          .check{min-height:36px;font-size:13px}
+          .note{border-radius:18px;padding:10px 12px;background:var(--secondary-background-color);font-size:12px}
+</style>
         <div class="editor">
           <div class="fields">
             <label class="field">
