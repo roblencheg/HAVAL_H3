@@ -1,4 +1,4 @@
-/* GWM RU Trips Card v0.1.0-beta.26 */
+/* GWM RU Trips Card v1.0.0 */
 (() => {
   let leaflet;
   const STYLES = {positron:'Светлая · OpenFreeMap',dark:'Тёмная · OpenFreeMap',liberty:'Стандартная · OpenFreeMap',osm:'OpenStreetMap'};
