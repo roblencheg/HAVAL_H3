@@ -83,6 +83,23 @@ COMMANDS = {
         "icon": "mdi:car-back",
         "instructions": {"0x09": {"switchOrder": "2", "operationTime": "0"}},
     },
+    "open_windows": {
+        "key": "open_windows",
+        "name": "Проветрить окна (эксперимент)",
+        "expected_remote_type": "0x08",
+        "risk": "medium",
+        "icon": "mdi:car-door-open",
+        "instructions": {
+            "0x08": {
+                "window": {
+                    "leftFront": 3,
+                    "leftBack": 3,
+                    "rightFront": 3,
+                    "rightBack": 3,
+                }
+            }
+        },
+    },
     "close_windows": {
         "key": "close_windows",
         "name": "Закрыть окна",
