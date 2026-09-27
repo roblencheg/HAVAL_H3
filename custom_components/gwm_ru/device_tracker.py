@@ -18,7 +18,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     coordinator: GwmRuCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     def entities_for_vehicle(vehicle):
-        if not has_capability(vehicle, "1-2-17"):
+        location = vehicle.get("location") or {}
+        has_observed_location = (
+            location.get("latitude") is not None
+            and location.get("longitude") is not None
+        )
+        if not has_capability(vehicle, "1-2-17") and not has_observed_location:
             return ()
         return (GwmRuLocationTracker(coordinator, vehicle["vin"]),)
 
