@@ -1,0 +1,31 @@
+name: Release v1.1.0-beta.2
+
+on:
+  push:
+    branches:
+      - feature/native-dashboard-cards
+    paths:
+      - .github/workflows/release-1.1.0-beta.2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1.0-beta.2 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.1.0-beta.2 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.1.0-beta.2" \
+            --prerelease \
+            --notes $'## Исправление карточек\n\n- Исправлен поиск автомобиля: карточки теперь используют только сущности платформы gwm_ru и не могут подхватить постороннее устройство Home Assistant\n- Исправлена ситуация, когда карточка могла выбрать планшет или другое устройство из-за совпадения suffix unique_id\n- Заголовок по умолчанию изменён на Haval\n- Обновлён cache-busting frontend ресурсов.'
