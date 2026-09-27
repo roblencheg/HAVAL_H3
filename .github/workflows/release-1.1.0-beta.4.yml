@@ -1,0 +1,31 @@
+name: Release v1.1.0-beta.4
+
+on:
+  push:
+    branches:
+      - feature/native-dashboard-cards
+    paths:
+      - .github/workflows/release-1.1.0-beta.4.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1.0-beta.4 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.1.0-beta.4 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.1.0-beta.4" \
+            --prerelease \
+            --notes $'## Исправление данных карточек\n\n- Исправлен двигатель: подтверждённый телеметрический код 2016001 теперь декодируется как 0=OFF, 2=RUNNING\n- Сохранён fallback на старое поле hyEngSts для совместимости\n- Данные телеметрии теперь имеют приоритет над неполным capability tree при создании сущностей\n- Добавлен уровень топлива в процентах: рассчитывается только из fuel_liters и tankCapacity, полученных из GWM Cloud\n- Добавлены sensor.fuel_percent и sensor.tank_capacity_l\n- Кнопки запуска двигателя и подготовки больше не блокируются из-за отсутствующего engine state, если 2016001 присутствует\n- Добавлены regression checks для этих зависимостей.'
