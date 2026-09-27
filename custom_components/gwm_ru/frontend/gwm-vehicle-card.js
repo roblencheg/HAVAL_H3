@@ -351,7 +351,10 @@
         "0x19": "Обогрев руля",
         "0x2A": "Обогрев лобового стекла",
       };
-      return raw.replace(/^(0x[0-9A-Fa-f]+)\b/, (code) => names[code] || code);
+      return raw.replace(/^(0x[0-9A-Fa-f]+)\b/, (code) => {
+        const normalized = `0x${code.slice(2).toUpperCase()}`;
+        return names[normalized] || code;
+      });
     }
 
     _labelBool(key, onLabel, offLabel, unknownLabel = "—") {
