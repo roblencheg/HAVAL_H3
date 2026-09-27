@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import copy
+import logging
+from pathlib import Path
+import time
 from uuid import uuid4
 
+import voluptuous as vol
+from homeassistant.components import frontend
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -32,11 +38,56 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import GwmRuCoordinator
+from .trips import TripHistory
+from .trips_ws import register as register_trips
+
+_LOGGER = logging.getLogger(__name__)
+
+FRONTEND_DIR = Path(__file__).parent / "frontend"
+FRONTEND_ASSETS = (
+    (FRONTEND_DIR / "gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js?v=1.1.0"),
+    (FRONTEND_DIR / "gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js?v=1.1.0"),
+    (FRONTEND_DIR / "gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js?v=1.1.0"),
+    (FRONTEND_DIR / "gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js?v=1.1.0"),
+    (FRONTEND_DIR / "gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js?v=1.1.0"),
+)
+DATA_FRONTEND_REGISTERED = "_frontend_registered"
+
+
+async def _async_register_frontend(hass: HomeAssistant) -> None:
+    """Serve bundled cards and register them as Home Assistant frontend modules."""
+    if hass.data[DOMAIN].get(DATA_FRONTEND_REGISTERED):
+        return
+
+    available = [asset for asset in FRONTEND_ASSETS if asset[0].exists()]
+    missing = [asset[0] for asset in FRONTEND_ASSETS if not asset[0].exists()]
+    for path in missing:
+        _LOGGER.warning("Bundled GWM dashboard card not found: %s", path)
+    if not available:
+        return
+
+    static_paths = [
+        StaticPathConfig(static_url, str(path), False)
+        for path, static_url, _frontend_url in available
+    ]
+    if (FRONTEND_DIR / "leaflet").exists():
+        static_paths.append(StaticPathConfig("/gwm-vehicle/leaflet", str(FRONTEND_DIR / "leaflet"), True))
+    if (FRONTEND_DIR / "maplibre").exists():
+        static_paths.append(StaticPathConfig("/gwm-vehicle/maplibre", str(FRONTEND_DIR / "maplibre"), True))
+    await hass.http.async_register_static_paths(static_paths)
+
+    for _path, _static_url, frontend_url in available:
+        frontend.add_extra_js_url(hass, frontend_url)
+
+    hass.data[DOMAIN][DATA_FRONTEND_REGISTERED] = True
+    _LOGGER.debug("Registered bundled GWM dashboard cards")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up GWM RU from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+    await _async_register_frontend(hass)
+
     data = dict(entry.data)
     options = dict(entry.options)
     device_id = data.get(CONF_DEVICE_ID) or uuid4().hex
@@ -60,11 +111,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.entry_id,
     )
     coordinator.enable_remote_controls = options.get(CONF_ENABLE_REMOTE_CONTROLS, DEFAULT_ENABLE_REMOTE_CONTROLS)
-    coordinator.command_cooldown = max(0, int(options.get(CONF_COMMAND_COOLDOWN, data.get(CONF_COMMAND_COOLDOWN, DEFAULT_COMMAND_COOLDOWN))))
+    coordinator.command_cooldown = max(
+        0,
+        int(options.get(
+            CONF_COMMAND_COOLDOWN,
+            data.get(CONF_COMMAND_COOLDOWN, DEFAULT_COMMAND_COOLDOWN),
+        )),
+    )
     coordinator.security_pin = options.get(CONF_SECURITY_PIN) or data.get(CONF_SECURITY_PIN) or None
 
+    await coordinator.async_load_card_settings()
+    await coordinator.async_load_profiles()
     await coordinator.async_config_entry_first_refresh()
+
+    for index, vehicle in enumerate(coordinator.vehicles):
+        vin = vehicle.get("vin")
+        if not vin:
+            continue
+        history = TripHistory(hass, f"{entry.entry_id}_{index}", 90)
+        coordinator.trip_histories[vin] = history
+        location = vehicle.get("location") or {}
+        state = vehicle.get("state") or {}
+        try:
+            await history.append(
+                time.time(),
+                {
+                    "latitude": location.get("latitude"),
+                    "longitude": location.get("longitude"),
+                    "odometer": state.get("mileage_total"),
+                },
+            )
+        except Exception:
+            _LOGGER.debug("Could not save initial GWM trip point", exc_info=True)
+
     hass.data[DOMAIN][entry.entry_id] = coordinator
+    register_trips(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _register_services(hass, coordinator, entry)
     return True
@@ -72,7 +153,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry: ConfigEntry) -> None:
     def _get_security_pin(call: ServiceCall) -> str | None:
-        return call.data.get(CONF_SECURITY_PIN) or entry.options.get(CONF_SECURITY_PIN) or entry.data.get(CONF_SECURITY_PIN) or None
+        return (
+            call.data.get(CONF_SECURITY_PIN)
+            or entry.options.get(CONF_SECURITY_PIN)
+            or entry.data.get(CONF_SECURITY_PIN)
+            or None
+        )
+
+    def _resolve_vin(call: ServiceCall) -> str:
+        vin = coordinator.resolve_vin(call.data.get("vin"))
+        if not vin:
+            raise HomeAssistantError("Vehicle VIN not available")
+        return vin
 
     async def async_handle_command(call: ServiceCall) -> None:
         if not coordinator.enable_remote_controls:
@@ -85,13 +177,12 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
 
-        vin = coordinator.resolve_vin(call.data.get("vin"))
-        if not vin:
-            raise HomeAssistantError("Vehicle VIN not available")
-
+        vin = _resolve_vin(call)
         security_pin = _get_security_pin(call)
         if not security_pin:
-            raise HomeAssistantError("Security PIN is required. Add it in GWM RU integration settings or pass security_pin in service data.")
+            raise HomeAssistantError(
+                "Security PIN is required. Add it in GWM RU integration settings or pass security_pin in service data."
+            )
 
         if cmd.get("dynamic") == "seat_heat":
             try:
@@ -113,10 +204,6 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
                 physical_key = "rightFront" if driver_is_right else "leftFront"
             else:
                 physical_key = "leftFront" if driver_is_right else "rightFront"
-
-            # Standalone T5 seat commands only include the seat being changed.
-            # Sending zero values for every other row/seat is rejected by H3 with
-            # resultCode 11. This shape also matches other working GWM T5 clients.
             seat = {
                 "operationMode": "1",
                 "switchOrder": "1",
@@ -124,8 +211,6 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
                 physical_key: str(level),
             }
             if level == 0:
-                # A zero level with switchOrder=1 means "change this seat to off"
-                # without touching the other front seat.
                 seat["operationTime"] = "0"
             instructions = {"0x0A": {"seat": seat}}
         else:
@@ -138,21 +223,127 @@ def _register_services(hass: HomeAssistant, coordinator: GwmRuCoordinator, entry
                 try:
                     operation_time = int(call.data.get("operation_time", 15))
                 except (TypeError, ValueError) as err:
-                    raise HomeAssistantError("Windshield heater operation_time must be an integer from 1 to 15") from err
+                    raise HomeAssistantError(
+                        "Windshield heater operation_time must be an integer from 1 to 15"
+                    ) from err
                 instructions["0x2A"]["operationTime"] = str(min(15, max(1, operation_time)))
             elif call.service == "engine_start":
                 instructions["0x03"]["operationTime"] = str(call.data.get("operation_time", 15))
 
-        await coordinator.async_execute_t5(vin, instructions, cmd["expected_remote_type"], str(security_pin))
+        await coordinator.async_execute_t5(
+            vin,
+            instructions,
+            cmd["expected_remote_type"],
+            str(security_pin),
+        )
+
+    async def async_handle_seat_heating(call: ServiceCall) -> None:
+        if not coordinator.enable_remote_controls or not coordinator.security_pin:
+            raise HomeAssistantError("Remote controls and security PIN are required")
+        try:
+            await coordinator.async_set_seat_heating(
+                _resolve_vin(call),
+                call.data.get("driver"),
+                call.data.get("passenger"),
+                call.data.get("operation_time", 5),
+            )
+        except (TypeError, ValueError) as err:
+            raise HomeAssistantError(str(err)) from err
+
+    async def async_handle_comfort_start(call: ServiceCall) -> None:
+        if not coordinator.enable_remote_controls or not coordinator.security_pin:
+            raise HomeAssistantError("Remote controls and security PIN are required")
+        try:
+            await coordinator.async_start_with_comfort(
+                _resolve_vin(call),
+                temperature=call.data["temperature"],
+                climate_time=call.data.get("climate_time", 15),
+                engine_time=call.data.get("engine_time", 15),
+                driver=call.data.get("driver"),
+                passenger=call.data.get("passenger"),
+                seat_time=call.data.get("seat_time", 5),
+                climate_enabled=call.data.get("climate_enabled", True),
+            )
+        except (TypeError, ValueError) as err:
+            raise HomeAssistantError(str(err)) from err
+
+    async def async_handle_save_card_settings(call: ServiceCall) -> None:
+        try:
+            await coordinator.async_save_card_settings(call.data["settings"])
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
+
+    async def async_handle_manage_profile(call: ServiceCall) -> None:
+        try:
+            await coordinator.async_manage_profile(
+                call.data["action"],
+                profile_id=call.data.get("profile_id", ""),
+                name=call.data.get("name", ""),
+                settings=call.data.get("settings"),
+            )
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
 
     for command_key in COMMANDS:
-        hass.services.async_register(DOMAIN, command_key, async_handle_command)
+        if not hass.services.has_service(DOMAIN, command_key):
+            hass.services.async_register(DOMAIN, command_key, async_handle_command)
+
+    if not hass.services.has_service(DOMAIN, "set_seat_heating"):
+        hass.services.async_register(
+            DOMAIN,
+            "set_seat_heating",
+            async_handle_seat_heating,
+            schema=vol.Schema({
+                vol.Optional("entry_id"): str,
+                vol.Optional("vin"): str,
+                vol.Optional("driver"): vol.All(int, vol.Range(min=0, max=3)),
+                vol.Optional("passenger"): vol.All(int, vol.Range(min=0, max=3)),
+                vol.Optional("operation_time", default=5): vol.All(int, vol.Range(min=1, max=10)),
+            }),
+        )
+    if not hass.services.has_service(DOMAIN, "start_with_comfort"):
+        hass.services.async_register(
+            DOMAIN,
+            "start_with_comfort",
+            async_handle_comfort_start,
+            schema=vol.Schema({
+                vol.Optional("entry_id"): str,
+                vol.Optional("vin"): str,
+                vol.Required("temperature"): vol.All(int, vol.Range(min=16, max=32)),
+                vol.Optional("climate_enabled", default=True): bool,
+                vol.Optional("climate_time", default=15): vol.All(int, vol.Range(min=5, max=30)),
+                vol.Optional("engine_time", default=15): vol.All(int, vol.Range(min=5, max=30)),
+                vol.Optional("seat_time", default=5): vol.All(int, vol.Range(min=1, max=10)),
+                vol.Optional("driver"): vol.All(int, vol.Range(min=0, max=3)),
+                vol.Optional("passenger"): vol.All(int, vol.Range(min=0, max=3)),
+            }),
+        )
+    if not hass.services.has_service(DOMAIN, "save_card_settings"):
+        hass.services.async_register(
+            DOMAIN,
+            "save_card_settings",
+            async_handle_save_card_settings,
+            schema=vol.Schema({
+                vol.Optional("entry_id"): str,
+                vol.Required("settings"): dict,
+            }),
+        )
+    if not hass.services.has_service(DOMAIN, "manage_preparation_profile"):
+        hass.services.async_register(
+            DOMAIN,
+            "manage_preparation_profile",
+            async_handle_manage_profile,
+            schema=vol.Schema({
+                vol.Optional("entry_id"): str,
+                vol.Required("action"): vol.In(["create", "update", "copy", "delete", "select"]),
+                vol.Optional("profile_id"): str,
+                vol.Optional("name"): str,
+                vol.Optional("settings"): dict,
+            }),
+        )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    for command_key in COMMANDS:
-        if hass.services.has_service(DOMAIN, command_key):
-            hass.services.async_remove(DOMAIN, command_key)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)

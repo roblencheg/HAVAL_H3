@@ -1,0 +1,32 @@
+name: Release v1.1.0
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/release-1.1.0.yml
+      - custom_components/gwm_ru/**
+      - README.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.1.0 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.1.0" \
+            --notes $'## GWM RU v1.1.0\n\n### Dashboard\n- Три встроенные карточки: основная, анимированный пульт и поездки\n- Автоматическая регистрация карточек в Home Assistant без ручного Lovelace resource\n- Визуальные редакторы карточек\n- Современный интерфейс в стилистике актуальных Home Assistant Tile/Sections, Bubble Card и Mushroom\n\n### Подготовка автомобиля\n- Профили подготовки\n- Последовательный запуск двигателя, климата и подогрева сидений\n- Настройки профилей хранятся локально в Home Assistant\n\n### Поездки\n- Локальная история маршрутов\n- Карта, пробег, стоянки, интервалы без GPS\n- Сегодня / Вчера / Неделя / произвольный период\n- Recorder fallback\n\n### Данные и исправления\n- Уровень топлива в процентах рассчитывается из данных GWM Cloud\n- Исправлено состояние двигателя по подтверждённому коду 2016001: 0=OFF, 2=RUNNING\n- Наблюдаемая телеметрия имеет приоритет над неполным capability tree\n- Карточки используют только сущности платформы gwm_ru\n\nПолное описание и установка: README репозитория.'

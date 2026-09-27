@@ -27,6 +27,8 @@ class GwmRuBinarySensorDescription(BinarySensorEntityDescription):
 BINARY_SENSORS: tuple[GwmRuBinarySensorDescription, ...] = (
     GwmRuBinarySensorDescription(key="tbox_online", state_key="tbox_online", name="TBOX онлайн", device_class=BinarySensorDeviceClass.CONNECTIVITY),
     GwmRuBinarySensorDescription(key="engine_on", state_key="engine_on", name="Двигатель запущен", icon="mdi:engine"),
+    GwmRuBinarySensorDescription(key="doors_open", state_key="doors_open", name="Открытые двери", icon="mdi:car-door"),
+    GwmRuBinarySensorDescription(key="windows_open", state_key="windows_open", name="Открытые окна", icon="mdi:car-door"),
     # BinarySensorDeviceClass.LOCK uses ON = unlocked/open and OFF = locked/closed.
     GwmRuBinarySensorDescription(key="locked", state_key="unlocked", name="Автомобиль", device_class=BinarySensorDeviceClass.LOCK, icon="mdi:car-door-lock"),
     GwmRuBinarySensorDescription(key="trunk_open", state_key="trunk_open", name="Багажник открыт", device_class=BinarySensorDeviceClass.DOOR),

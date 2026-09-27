@@ -18,7 +18,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 
 from .capabilities import build_vehicle_capabilities
 from .const import APP_ID, APP_KEY, APP_SEC, APP_VERSION, AUTH_PREFIX, BASE_URL, BRAND, COUNTRY, ENDPOINT_CHECK_SECURITY_PASSWORD, ENDPOINT_FIND_STATUS, ENDPOINT_LAST_STATUS, ENDPOINT_LOGIN, ENDPOINT_T5_CTRL_RESULT, ENDPOINT_T5_SEND_CMD, ENDPOINT_VEHICLE_CAPABILITIES, ENDPOINT_VEHICLES, ENTERPRISE_ID, LANGUAGE, REGION_CODE, SYSTEM_TYPE, TERMINAL
-from .helpers import build_state, normalize_phone, redact_vehicle
+from .helpers import build_state, calculate_fuel_percent, normalize_phone, redact_vehicle
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +87,17 @@ class GwmRuApiClient:
         state["brand"] = car_data.get("brandName") or (name_parts[0] if name_parts else None)
         state["model"] = model_name or car_data.get("model")
         state["color"] = car_data.get("color")
+        tank_capacity = car_data.get("tankCapacity")
+        try:
+            tank_capacity_number = float(tank_capacity) if tank_capacity is not None else None
+            if tank_capacity_number is not None and tank_capacity_number.is_integer():
+                tank_capacity_number = int(tank_capacity_number)
+        except (TypeError, ValueError):
+            tank_capacity_number = None
+        state["tank_capacity_l"] = tank_capacity_number
+        fuel_percent = calculate_fuel_percent(state.get("fuel_liters"), tank_capacity_number)
+        if fuel_percent is not None:
+            state["fuel_percent"] = fuel_percent
 
         capability_raw: Any = None
         capability_error: str | None = None

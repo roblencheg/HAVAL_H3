@@ -22,6 +22,7 @@ COMMAND_CAPABILITIES: dict[str, str] = {
     "rear_defrost_on": "1-1-5-1",
     "rear_defrost_off": "1-1-5-2",
     "close_windows": "1-1-6-2",
+    "open_windows": "1-1-6-2",
     "close_sunroof": "1-1-7-2",
     "steering_wheel_heat_on": "1-1-21-1",
     "steering_wheel_heat_off": "1-1-21-2",
@@ -206,5 +207,10 @@ def supports_command(vehicle: dict[str, Any] | None, command_key: str) -> bool:
 
 
 def supports_state(vehicle: dict[str, Any] | None, state_key: str) -> bool:
+    """Expose observed telemetry even when the capability tree is incomplete."""
+    if vehicle:
+        state = vehicle.get("state") or {}
+        if state_key in state and state.get(state_key) is not None:
+            return True
     code = STATE_CAPABILITIES.get(state_key)
     return True if code is None else has_capability(vehicle, code)
