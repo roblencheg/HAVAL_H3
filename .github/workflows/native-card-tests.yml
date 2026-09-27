@@ -1,0 +1,31 @@
+name: Native card checks
+
+on:
+  pull_request:
+    paths:
+      - "custom_components/gwm_ru/**"
+      - ".github/workflows/native-card-tests.yml"
+  push:
+    branches:
+      - feature/native-dashboard-cards
+    paths:
+      - "custom_components/gwm_ru/**"
+      - ".github/workflows/native-card-tests.yml"
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile Python
+        run: python -m compileall -q custom_components/gwm_ru
+      - name: Check bundled card JavaScript
+        run: |
+          node --check custom_components/gwm_ru/frontend/gwm-vehicle-card.js
+          node --check custom_components/gwm_ru/frontend/gwm-vehicle-card-editor.js
+          node --check custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
+          node --check custom_components/gwm_ru/frontend/gwm-vehicle-trips-card.js
+          node --check custom_components/gwm_ru/frontend/gwm-vehicle-compat.js
