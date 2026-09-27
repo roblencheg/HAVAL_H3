@@ -198,7 +198,7 @@
           <div class="fields">
             <label class="field">
               Название карточки (необязательно)
-              <input id="title" type="text" value="${escapeHtml(title)}" placeholder="Haval Vehicle">
+              <input id="title" type="text" value="${escapeHtml(title)}" placeholder="GWM vehicle">
             </label>
             <label class="field">
               Привод (необязательно)
