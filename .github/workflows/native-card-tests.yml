@@ -24,6 +24,7 @@ jobs:
         run: python -m compileall -q custom_components/gwm_ru
       - name: Check bundled card JavaScript
         run: |
+          node --input-type=module --check < custom_components/gwm_ru/frontend/gwm-vehicle-bundle.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-card-editor.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js

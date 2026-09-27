@@ -1,0 +1,32 @@
+name: Release v1.1.1
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/release-1.1.1.yml
+      - custom_components/gwm_ru/**
+      - README.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1.1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.1.1 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.1.1" \
+            --notes $'## GWM RU v1.1.1\n\n### Исправление загрузки карточек\n- Устранена гонка при загрузке встроенных Lovelace-карточек\n- Карточки теперь загружаются единым module resource до рендера Dashboard\n- Исправлены периодические ошибки Custom element doesn\'t exist для gwm-vehicle-card и gwm-vehicle-remote-card\n- В storage mode Lovelace ресурс создаётся и обновляется автоматически\n- Для YAML resource mode сохранён frontend fallback\n\nТакже восстановлен стандартный MIT LICENSE для корректного определения лицензии HACS; сторонние уведомления вынесены в THIRD_PARTY_NOTICES.md.\n\nЭто hotfix поверх v1.1.0.'

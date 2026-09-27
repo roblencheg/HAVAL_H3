@@ -11,6 +11,7 @@ from uuid import uuid4
 import voluptuous as vol
 from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -44,44 +45,83 @@ from .trips_ws import register as register_trips
 _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
+FRONTEND_VERSION = "1.1.1"
+FRONTEND_BUNDLE_PATH = "/gwm-vehicle/gwm-vehicle-bundle.js"
+FRONTEND_BUNDLE_URL = f"{FRONTEND_BUNDLE_PATH}?v={FRONTEND_VERSION}"
 FRONTEND_ASSETS = (
-    (FRONTEND_DIR / "gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js?v=1.1.0"),
-    (FRONTEND_DIR / "gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js?v=1.1.0"),
-    (FRONTEND_DIR / "gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js?v=1.1.0"),
-    (FRONTEND_DIR / "gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js?v=1.1.0"),
-    (FRONTEND_DIR / "gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js?v=1.1.0"),
+    (FRONTEND_DIR / "gwm-vehicle-bundle.js", FRONTEND_BUNDLE_PATH),
+    (FRONTEND_DIR / "gwm-vehicle-trips-card.js", "/gwm-vehicle/gwm-vehicle-trips-card.js"),
+    (FRONTEND_DIR / "gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js"),
+    (FRONTEND_DIR / "gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js"),
+    (FRONTEND_DIR / "gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js"),
+    (FRONTEND_DIR / "gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js"),
 )
 DATA_FRONTEND_REGISTERED = "_frontend_registered"
 
-
 async def _async_register_frontend(hass: HomeAssistant) -> None:
-    """Serve bundled cards and register them as Home Assistant frontend modules."""
+    """Serve bundled cards and load them before Lovelace renders dashboards.
+
+    Storage-mode Lovelace resources are awaited by the frontend before card
+    configuration is rendered. This avoids a race where dynamically-added
+    frontend modules arrive after Lovelace has already tried to instantiate
+    the custom element.
+    """
     if hass.data[DOMAIN].get(DATA_FRONTEND_REGISTERED):
         return
 
-    available = [asset for asset in FRONTEND_ASSETS if asset[0].exists()]
-    missing = [asset[0] for asset in FRONTEND_ASSETS if not asset[0].exists()]
+    missing = [path for path, _url in FRONTEND_ASSETS if not path.exists()]
     for path in missing:
-        _LOGGER.warning("Bundled GWM dashboard card not found: %s", path)
-    if not available:
+        _LOGGER.warning("Bundled GWM dashboard asset not found: %s", path)
+    if missing:
         return
 
     static_paths = [
         StaticPathConfig(static_url, str(path), False)
-        for path, static_url, _frontend_url in available
+        for path, static_url in FRONTEND_ASSETS
     ]
     if (FRONTEND_DIR / "leaflet").exists():
-        static_paths.append(StaticPathConfig("/gwm-vehicle/leaflet", str(FRONTEND_DIR / "leaflet"), True))
+        static_paths.append(
+            StaticPathConfig("/gwm-vehicle/leaflet", str(FRONTEND_DIR / "leaflet"), True)
+        )
     if (FRONTEND_DIR / "maplibre").exists():
-        static_paths.append(StaticPathConfig("/gwm-vehicle/maplibre", str(FRONTEND_DIR / "maplibre"), True))
+        static_paths.append(
+            StaticPathConfig("/gwm-vehicle/maplibre", str(FRONTEND_DIR / "maplibre"), True)
+        )
     await hass.http.async_register_static_paths(static_paths)
 
-    for _path, _static_url, frontend_url in available:
-        frontend.add_extra_js_url(hass, frontend_url)
+    lovelace_data = hass.data.get(LOVELACE_DATA)
+    if lovelace_data is not None and lovelace_data.resource_mode == MODE_STORAGE:
+        resources = lovelace_data.resources
+        await resources.async_get_info()
+        existing = next(
+            (
+                item
+                for item in resources.async_items()
+                if str(item.get("url") or "").split("?", 1)[0] == FRONTEND_BUNDLE_PATH
+            ),
+            None,
+        )
+        if existing is None:
+            await resources.async_create_item(
+                {"res_type": "module", "url": FRONTEND_BUNDLE_URL}
+            )
+            _LOGGER.debug("Created Lovelace resource %s", FRONTEND_BUNDLE_URL)
+        elif existing.get("url") != FRONTEND_BUNDLE_URL or existing.get("type") != "module":
+            await resources.async_update_item(
+                existing["id"],
+                {"res_type": "module", "url": FRONTEND_BUNDLE_URL},
+            )
+            _LOGGER.debug("Updated Lovelace resource %s", FRONTEND_BUNDLE_URL)
+    else:
+        # YAML resource mode cannot be modified through storage. Keep the
+        # Home Assistant frontend-module mechanism as a compatibility fallback.
+        frontend.add_extra_js_url(hass, FRONTEND_BUNDLE_URL)
+        _LOGGER.debug(
+            "Registered GWM dashboard bundle as frontend extra module (YAML fallback)"
+        )
 
     hass.data[DOMAIN][DATA_FRONTEND_REGISTERED] = True
-    _LOGGER.debug("Registered bundled GWM dashboard cards")
-
+    _LOGGER.debug("Registered bundled GWM dashboard resource: %s", FRONTEND_BUNDLE_URL)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up GWM RU from a config entry."""
