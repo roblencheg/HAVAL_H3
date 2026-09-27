@@ -300,7 +300,7 @@
     _render(){if(!this._config || !this._hass || this._fields)return;this._fields={};
       for(const [key,domain,title] of [['entity','device_tracker','Местоположение автомобиля'],['odometer_entity','sensor','Пробег (необязательно, определяется автоматически)']]){
         const label=document.createElement('label');label.textContent=title;
-        const field=document.createElement('ha-selector');field.hass=this._hass;field.selector={entity:{domain,...(key==='entity'?{integration:'gwm_ru'}:{})}};field.value=this._config[key] || '';field.style.display='block';field.style.marginBottom='16px';this._fields[key]=field;
+        const field=document.createElement('ha-selector');field.hass=this._hass;field.selector={entity:{filter:{domain,...(key==='entity'?{integration:'gwm_ru'}:{})}}};field.value=this._config[key] || '';field.style.display='block';field.style.marginBottom='16px';this._fields[key]=field;
         field.addEventListener('value-changed',e=>{this._config={...this._config,[key]:e.detail.value || ''};this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:this._config},bubbles:true,composed:true}));});this.append(label,field);
       }
       const label=document.createElement('label');label.textContent='Оформление карты';
