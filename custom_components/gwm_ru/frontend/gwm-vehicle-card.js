@@ -1,4 +1,4 @@
-/* GWM RU Card v1.0.0 */
+/* GWM RU Card v1.1.2 */
 (() => {
   const CARD_VERSION = "1.0.0";
   const INTEGRATION = "gwm_ru";
@@ -334,6 +334,24 @@
       if (hours < 24) return `Обновлено ${hours} ч назад`;
       const days = Math.floor(hours / 24);
       return `Обновлено ${days} дн назад`;
+    }
+
+    _commandLabel() {
+      const raw = this._value("lastCommand", "");
+      if (!raw) return "";
+      const names = {
+        "0x03": "Двигатель",
+        "0x04": "Климат",
+        "0x05": "Центральный замок",
+        "0x06": "Свет / сигнал",
+        "0x08": "Окна / люк",
+        "0x09": "Багажник",
+        "0x0A": "Подогрев сидений",
+        "0x0B": "Обогрев заднего стекла",
+        "0x19": "Обогрев руля",
+        "0x2A": "Обогрев лобового стекла",
+      };
+      return raw.replace(/^(0x[0-9A-Fa-f]+)\b/, (code) => names[code] || code);
     }
 
     _labelBool(key, onLabel, offLabel, unknownLabel = "—") {
@@ -1350,7 +1368,7 @@
                 </span>
                 ${
                   this._state("lastCommand")
-                    ? `<span class="system-item">${this._icon("mdi:cloud-check-outline")}${this._escape(this._value("lastCommand"))}</span>`
+                    ? `<span class="system-item">${this._icon("mdi:cloud-check-outline")}${this._escape(this._commandLabel())}</span>`
                     : ""
                 }
               </div>
