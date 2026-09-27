@@ -67,7 +67,30 @@
         :host(.fallback-fullscreen){position:fixed;inset:0;z-index:1000;display:block;background:var(--card-background-color,#fff)}:host(.fallback-fullscreen) ha-card,ha-card:fullscreen{width:100%;height:100%;min-height:100%;display:flex;flex-direction:column;border-radius:0;background:var(--card-background-color,#fff)}:host(.fallback-fullscreen) .map-wrap,ha-card:fullscreen .map-wrap{flex:1;height:auto;min-height:0}:host(.fallback-fullscreen) .content,ha-card:fullscreen .content{display:none}
         .leaflet-container{font-family:inherit}.leaflet-control-attribution{font-size:10px}
         @media(max-width:350px){button{padding:7px 8px}.content{padding:10px}.map-wrap{height:260px}}
-      </style><ha-card><div class="map-wrap"><div class="map" aria-label="Карта маршрута"></div><div class="map-actions"><button id="centerBtn" type="button" title="Показать автомобиль в центре карты" aria-label="Показать автомобиль в центре карты"><ha-icon icon="mdi:crosshairs-gps"></ha-icon></button><button id="fullscreenBtn" type="button" title="Развернуть карту" aria-label="Развернуть карту" aria-pressed="false"><ha-icon icon="mdi:fullscreen"></ha-icon></button></div></div><div class="content">
+      
+        /* 2026 reference baseline: HA Tile/Sections + Bubble Card + Mushroom typography */
+        :host{--gwm-row-height:56px;--gwm-pill-radius:28px;--gwm-chip-height:36px;--gwm-chip-radius:19px;--gwm-surface:var(--secondary-background-color,color-mix(in srgb,var(--primary-text-color) 6%,var(--card-background-color)))}
+        ha-card{border-radius:var(--ha-card-border-radius,20px);border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));box-shadow:var(--ha-card-box-shadow,none)}
+        .content{padding:14px 16px 16px}
+        button{min-height:var(--gwm-chip-height);border-radius:var(--gwm-chip-radius);background:var(--gwm-surface);font-size:12px;font-weight:500;padding:0 13px}
+        button.active{background:var(--primary-color);color:var(--text-primary-color,#fff)}
+        input{min-height:40px;border-radius:20px;background:var(--gwm-surface);font-size:13px;padding:0 12px}
+        .summary{justify-content:flex-start;margin:0 0 10px;gap:8px;min-height:40px}
+        .km{font-size:24px;line-height:30px;font-weight:500}
+        .summary ha-icon{--mdc-icon-size:20px}
+        .shortcuts{justify-content:flex-start;gap:8px;overflow-x:auto;scrollbar-width:none}
+        .shortcuts::-webkit-scrollbar{display:none}
+        #calendar{width:var(--gwm-chip-height);height:var(--gwm-chip-height);min-height:var(--gwm-chip-height);border-radius:18px;flex:0 0 var(--gwm-chip-height)}
+        .dates{gap:8px;margin-top:10px}
+        label{font-size:12px;font-weight:400}
+        .map-wrap{height:320px;background:var(--gwm-surface)}
+        .map-actions{top:10px;right:10px;gap:8px}
+        .map-actions button{width:36px;height:36px;min-height:36px;border-radius:18px;padding:0;background:var(--card-background-color);border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));box-shadow:none}
+        .speed-legend{justify-content:flex-start;gap:8px;margin:0 0 10px;font-size:11px}
+        .speed-legend span{min-height:28px;padding:0 8px;border-radius:14px;background:var(--gwm-surface)}
+        .error,.map-status{font-size:12px;text-align:left}
+        @media(max-width:420px){.content{padding:12px 14px 14px}.map-wrap{height:280px}.summary{margin-bottom:8px}}
+</style><ha-card><div class="map-wrap"><div class="map" aria-label="Карта маршрута"></div><div class="map-actions"><button id="centerBtn" type="button" title="Показать автомобиль в центре карты" aria-label="Показать автомобиль в центре карты"><ha-icon icon="mdi:crosshairs-gps"></ha-icon></button><button id="fullscreenBtn" type="button" title="Развернуть карту" aria-label="Развернуть карту" aria-pressed="false"><ha-icon icon="mdi:fullscreen"></ha-icon></button></div></div><div class="content">
       <div class="speed-legend" aria-label="Цвета средней скорости и стоянки" hidden><span><i class="low"></i><b class="low-range">до 80 км/ч</b></span><span><i class="medium"></i><b class="medium-range">80–110 км/ч</b></span><span><i class="high"></i><b class="high-range">110+ км/ч</b></span><span><i class="parking">A</i><b>A, B, C</b></span></div>
       <div class="summary"><ha-icon icon="mdi:counter" aria-hidden="true"></ha-icon><span class="km" aria-label="Пробег за выбранный период">—</span></div>
       <div class="shortcuts"><button data-mode="today">Сегодня</button><button data-mode="yesterday">Вчера</button><button data-mode="week">Неделя</button><button id="calendar" title="Выбрать период" aria-label="Выбрать период" aria-expanded="false" aria-controls="period"><ha-icon icon="mdi:calendar-range"></ha-icon></button></div>
