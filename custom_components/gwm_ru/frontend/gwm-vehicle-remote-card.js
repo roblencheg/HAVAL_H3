@@ -185,7 +185,7 @@
         <div class="editor">
           <div class="row">
             <label class="field">Название
-              <input id="title" type="text" value="${this._escape(this._config.title || "")}" placeholder="Haval Vehicle">
+              <input id="title" type="text" value="${this._escape(this._config.title || "")}" placeholder="GWM vehicle">
             </label>
 
           </div>
@@ -423,7 +423,7 @@
 
     _title() {
       if (this._config.title) return String(this._config.title);
-      const model = String(this._device?.model || "Haval Vehicle").trim();
+      const model = String(this._device?.model || "GWM vehicle").trim();
       const drivetrain = this._drivetrain();
       return drivetrain ? `${model} ${drivetrain}` : model;
     }
@@ -837,11 +837,9 @@
         return this._runBusy(action, () => this._hass.callService(INTEGRATION, "set_seat_heating", {entry_id:this._entryId,driver:on ? 0 : 3,passenger:on ? 0 : 3,operation_time:10}));
       }
       if (action === "lock") {
-        const entityId = this._entities.lock;
-        if (!entityId) return alert("GWM RU: сущность замка не найдена");
         if (!this._confirm(unlocked ? "Закрыть автомобиль?" : "Разблокировать автомобиль?")) return;
         return this._runBusy(action, () =>
-          this._hass.callService("lock", unlocked ? "lock" : "unlock", { entity_id: entityId }),
+          this._hass.callService(INTEGRATION, unlocked ? "lock_vehicle" : "unlock_vehicle", { entry_id: this._entryId }),
         );
       }
 
