@@ -93,6 +93,7 @@
     steeringHeat: "_steering_wheel_heater_on",
     rearDefrost: "_rear_defroster_on",
     frontDefrost: "_front_defrost_on",
+    sunroofOpen: "_sunroof_open",
     light7Raw: "_light_2204007_raw",
     light8Raw: "_light_2204008_raw",
   };
@@ -185,7 +186,7 @@
         <div class="editor">
           <div class="row">
             <label class="field">Название
-              <input id="title" type="text" value="${this._escape(this._config.title || "")}" placeholder="GWM vehicle">
+              <input id="title" type="text" value="${this._escape(this._config.title || "")}" placeholder="автомобиля GWM">
             </label>
 
           </div>
@@ -423,7 +424,7 @@
 
     _title() {
       if (this._config.title) return String(this._config.title);
-      const model = String(this._device?.model || "GWM vehicle").trim();
+      const model = String(this._device?.model || "автомобиля GWM").trim();
       const drivetrain = this._drivetrain();
       return drivetrain ? `${model} ${drivetrain}` : model;
     }
@@ -967,7 +968,7 @@
     window.customCards.push({
       type: "gwm-vehicle-remote-card",
       name: "GWM RU — анимированный пульт",
-      description: "Широкий top-view Vehicle с крупными статусами, значениями топлива/пробега и независимой анимацией дверей, багажника, двигателя и климата",
+      description: "Широкий top-view автомобиля с крупными статусами, значениями топлива/пробега и независимой анимацией дверей, багажника, двигателя и климата",
       preview: true,
       documentationURL: "https://github.com/roblencheg/HAVAL_H3",
     });
