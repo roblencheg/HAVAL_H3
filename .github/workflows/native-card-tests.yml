@@ -29,3 +29,9 @@ jobs:
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-trips-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-compat.js
+      - name: Regression checks for card data dependencies
+        run: |
+          grep -q '"2016001": "engine_state_raw"' custom_components/gwm_ru/helpers.py
+          grep -q '"fuel_percent": ExtraSensorDef' custom_components/gwm_ru/const.py
+          grep -q 'calculate_fuel_percent(state.get("fuel_liters"), tank_capacity_number)' custom_components/gwm_ru/api.py
+          grep -q 'state\["engine_on"\] = _state_equals(engine_item_state, "2")' custom_components/gwm_ru/helpers.py
