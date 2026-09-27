@@ -5,7 +5,6 @@
     "seat_heat_driver",
     "seat_heat_passenger",
     "sunroof",
-    "sunshade",
     "steering_wheel_heat",
     "rear_defrost",
     "front_windscreen_heat",
