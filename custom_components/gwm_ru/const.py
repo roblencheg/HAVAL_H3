@@ -100,6 +100,8 @@ EXTRA_SENSORS: dict[str, ExtraSensorDef] = {
     "brand": ExtraSensorDef("brand", "Марка", None, "mdi:car", None),
     "model": ExtraSensorDef("model", "Модель", None, "mdi:car-info", None),
     "color": ExtraSensorDef("color", "Цвет", None, "mdi:palette", None),
+    "tank_capacity_l": ExtraSensorDef("tank_capacity_l", "Объём топливного бака", "L", "mdi:gas-station", None),
+    "fuel_percent": ExtraSensorDef("fuel_percent", "Уровень топлива", "%", "mdi:fuel", None),
     "oil_qty": ExtraSensorDef("oil_qty", "Уровень масла", None, "mdi:oil", None),
     "service_status": ExtraSensorDef("service_status", "Статус обслуживания", None, "mdi:car-connected", None),
     "tbox_status": ExtraSensorDef("tbox_status", "Статус TBOX", None, "mdi:access-point-network", None),
