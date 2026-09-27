@@ -1,4 +1,4 @@
-/* GWM RU Trips Card v1.0.0 */
+/* GWM RU Trips Card v1.1.2 */
 (() => {
   let leaflet;
   const STYLES = {positron:'Светлая · OpenFreeMap',dark:'Тёмная · OpenFreeMap',liberty:'Стандартная · OpenFreeMap',osm:'OpenStreetMap'};
@@ -45,11 +45,11 @@
   function parkingOccurrences(spots,start,end,zone){let sequence=0;const spotOffsets={};return spots.flatMap(spot=>{const started=Number(spot.start),ended=spot.end===null||spot.end===undefined?NaN:Number(spot.end),startDay=dayInZone(started,zone),endDay=dayInZone(Number.isFinite(ended)?ended:Number(spot.observed_until ?? (started+Number(spot.duration || 0))),zone),spotKey=`${spot.latitude}|${spot.longitude}|${spot.start}|${spot.end}`;return dateRange(start,end).filter(day=>startDay<=day&&(!endDay||day<=endDay)).map(day=>{const index=sequence++,offset=spotOffsets[spotKey]||0;spotOffsets[spotKey]=offset+1;return {...spot,day,label:pointLabel(index),offset_index:offset,show_end:Number.isFinite(ended)&&day===endDay};});});}
   class TripsCard extends HTMLElement {
     static getConfigElement() { return document.createElement('gwm-vehicle-trips-card-editor'); }
-    static getStubConfig(hass) {
-      return {entity: Object.keys(hass.states).find(id => id.startsWith('device_tracker.') && id.endsWith('_location')) || '', title:'Поездки',map_style:'positron',speed_green_max:80,speed_red_min:110};
+    static getStubConfig() {
+      return {entity:'', title:'Поездки',map_style:'positron',speed_green_max:80,speed_red_min:110};
     }
     constructor() {
-      super(); this.attachShadow({mode:'open'}); this._mode='today'; this._serial=0;
+      super(); this.attachShadow({mode:'open'}); this._mode='today'; this._serial=0; this._autoEntity=''; this._entityResolving=false;
       this.shadowRoot.innerHTML = `<link rel="stylesheet" href="/gwm-vehicle/leaflet/leaflet.css">
       <link rel="stylesheet" href="/gwm-vehicle/maplibre/maplibre-gl.css">
       <style>
@@ -106,13 +106,18 @@
       this.shadowRoot.querySelector('#calendar').onclick=()=>this._calendar(this.shadowRoot.querySelector('.dates').hidden);
     }
     setConfig(config) {
+      const previousEntity=this._config?.entity || '';
       this._config={...config}; this._serial++;this._fitKey=null;
+      if(this._config.entity && this._config.entity!==previousEntity)this._autoEntity='';
       this.setAttribute('aria-label',config.title || 'Поездки');
       this._updateSpeedLegend();
-      this._layer?.clearLayers(); this._load();
+      this._layer?.clearLayers();
+      if(this._hass && !this._config.entity)this._resolveEntity();
+      this._load();
     }
     set hass(hass) {
       const first=!this._hass; this._hass=hass;
+      if(!this._config?.entity)this._resolveEntity();
       if(first) this._load();
     }
     connectedCallback() {
@@ -126,8 +131,30 @@
     _calendar(open){this.shadowRoot.querySelector('.dates').hidden=!open;this.shadowRoot.querySelector('#calendar').setAttribute('aria-expanded',String(open));if(open)this.shadowRoot.querySelector('#start').focus();}
     _highlight(){this.shadowRoot.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===this._mode));this.shadowRoot.querySelector('#calendar').classList.toggle('active',this._mode==='custom');}
     _updateSpeedLegend(){const limits=speedLimits(this._config);this.shadowRoot.querySelector('.low-range').textContent=`до ${limits.green} км/ч`;this.shadowRoot.querySelector('.medium-range').textContent=`${limits.green}–${limits.red} км/ч`;this.shadowRoot.querySelector('.high-range').textContent=`${limits.red}+ км/ч`;}
+    _effectiveEntity(){return this._config?.entity || this._autoEntity || '';}
+    async _resolveEntity(){
+      if(!this._hass || this._config?.entity || this._entityResolving || this._autoEntity)return;
+      this._entityResolving=true;
+      try{
+        const registry=await this._hass.callWS({type:'config/entity_registry/list'});
+        const found=(Array.isArray(registry)?registry:[]).find(entry =>
+          entry.platform==='gwm_ru' &&
+          String(entry.entity_id || '').startsWith('device_tracker.') &&
+          String(entry.unique_id || '').endsWith('_location')
+        );
+        if(found?.entity_id){
+          this._autoEntity=found.entity_id;
+          this.shadowRoot.querySelector('.error').textContent='';
+          this._load();
+        }
+      }catch(error){
+        console.error('[GWM RU Trips] location discovery failed',error);
+      }finally{
+        this._entityResolving=false;
+      }
+    }
     _centerVehicle(){
-      const state=this._hass?.states[this._config?.entity];
+      const state=this._hass?.states[this._effectiveEntity()];
       const latitude=Number(state?.attributes.latitude),longitude=Number(state?.attributes.longitude);
       if(!this._map)return;
       if(Number.isFinite(latitude)&&Number.isFinite(longitude))this._map.flyTo([latitude,longitude],Math.max(this._map.getZoom(),16),{duration:.45});
@@ -176,7 +203,12 @@
       if(!this.isConnected || !this._hass || !this._config)return;
       const serial=++this._serial;
       const root=this.shadowRoot, error=root.querySelector('.error');
-      if(!this._config.entity){error.textContent='Выберите сущность местоположения GWM RU в настройках карточки.';return;}
+      const entity=this._effectiveEntity();
+      if(!entity){
+        this._resolveEntity();
+        error.textContent=this._entityResolving?'Ищем местоположение автомобиля GWM…':'Местоположение автомобиля GWM пока не найдено.';
+        return;
+      }
       const today=dateInZone(this._hass.config.time_zone);
       if(!root.querySelector('.dates').hidden && this._fitKey)return;
       if(this._mode==='custom' && this._range){root.querySelector('#start').value=this._range[0];root.querySelector('#end').value=this._range[1];}
@@ -187,12 +219,12 @@
       const start=root.querySelector('#start').value,end=root.querySelector('#end').value;
       this._highlight();
       if(!start || !end || start>end){error.textContent='Проверьте начало и конец периода.';return;}
-      const queryKey=`${this._config.entity}|${this._config.odometer_entity || ''}|${start}|${end}`;
+      const queryKey=`${entity}|${this._config.odometer_entity || ''}|${start}|${end}`;
       if(this._queryKey!==queryKey){this._layer?.clearLayers();root.querySelector('.km').textContent='—';this._queryKey=queryKey;}
       error.textContent='';root.querySelector('.summary').setAttribute('aria-busy','true');
       let timeout;
       try{
-        const data=await Promise.race([this._hass.callWS({type:'gwm_ru/trips',entity_id:this._config.entity,start,end,...(this._config.odometer_entity?{odometer_entity:this._config.odometer_entity}:{})}),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('Не удалось загрузить историю. Выберите период ещё раз.')),20000);})]);
+        const data=await Promise.race([this._hass.callWS({type:'gwm_ru/trips',entity_id:entity,start,end,...(this._config.odometer_entity?{odometer_entity:this._config.odometer_entity}:{})}),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('Не удалось загрузить историю. Выберите период ещё раз.')),20000);})]);
         if(serial!==this._serial || !this.isConnected)return;
         error.textContent=data.samples?'':'За этот период нет записей.';
         root.querySelector('.km').textContent=data.samples?`${data.method==='odometer'?'':'≈ '}${data.km.toLocaleString('ru-RU')}`:'—';
@@ -242,7 +274,7 @@
         }
         if(!this._layer.getLayers().length && start<=today && today<=end){
           const validPosition=value=>value && value.latitude!==null && value.longitude!==null && value.latitude!=='' && value.longitude!=='' && Number.isFinite(Number(value.latitude)) && Number.isFinite(Number(value.longitude)) && Math.abs(Number(value.latitude))<=90 && Math.abs(Number(value.longitude))<=180 && (Number(value.latitude)!==0 || Number(value.longitude)!==0);
-          const current=this._hass.states[this._config.entity]?.attributes;
+          const current=this._hass.states[entity]?.attributes;
           const position=validPosition(current)?current:validPosition(data.last_position)?data.last_position:null;
           if(position){
             const iconElement=document.createElement('ha-icon');iconElement.setAttribute('icon','mdi:car');iconElement.className='route-point';
@@ -250,7 +282,7 @@
             L.marker([Number(position.latitude),Number(position.longitude)],{icon,keyboard:true,title:'Последнее известное положение автомобиля'}).bindTooltip('Последнее известное положение автомобиля').addTo(this._layer);
           }
         }
-        if(this._layer.getLayers().length){this._map.invalidateSize();const key=`${this._config.entity}|${start}|${end}`;if(this._fitKey!==key){this._map.fitBounds(this._layer.getBounds(),{padding:[25,25],maxZoom:16});this._fitKey=key;}}
+        if(this._layer.getLayers().length){this._map.invalidateSize();const key=`${entity}|${start}|${end}`;if(this._fitKey!==key){this._map.fitBounds(this._layer.getBounds(),{padding:[25,25],maxZoom:16});this._fitKey=key;}}
         else {this._map.setView([20,0],2);this._fitKey=null;}
       }catch(err){if(serial===this._serial)error.textContent=err.message || 'Не удалось загрузить историю. Проверьте выбранную сущность.';}
       finally{clearTimeout(timeout);if(serial===this._serial)root.querySelector('.summary').setAttribute('aria-busy','false');}
@@ -268,7 +300,7 @@
     _render(){if(!this._config || !this._hass || this._fields)return;this._fields={};
       for(const [key,domain,title] of [['entity','device_tracker','Местоположение автомобиля'],['odometer_entity','sensor','Пробег (необязательно, определяется автоматически)']]){
         const label=document.createElement('label');label.textContent=title;
-        const field=document.createElement('ha-selector');field.hass=this._hass;field.selector={entity:{domain}};field.value=this._config[key] || '';field.style.display='block';field.style.marginBottom='16px';this._fields[key]=field;
+        const field=document.createElement('ha-selector');field.hass=this._hass;field.selector={entity:{filter:{domain,...(key==='entity'?{integration:'gwm_ru'}:{})}}};field.value=this._config[key] || '';field.style.display='block';field.style.marginBottom='16px';this._fields[key]=field;
         field.addEventListener('value-changed',e=>{this._config={...this._config,[key]:e.detail.value || ''};this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:this._config},bubbles:true,composed:true}));});this.append(label,field);
       }
       const label=document.createElement('label');label.textContent='Оформление карты';

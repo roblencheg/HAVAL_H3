@@ -1,0 +1,32 @@
+name: Release v1.1.2
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/release-1.1.2.yml
+      - custom_components/gwm_ru/**
+      - README.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1.2 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.1.2 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.1.2" \
+            --notes $'## GWM RU v1.1.2\n\n### Карта поездок\n- Исправлен автоматический выбор местоположения автомобиля\n- Карточка ищет device_tracker именно платформы gwm_ru через реестр сущностей\n- GPS tracker может создаваться по фактически полученным координатам даже при неполном capability tree\n\n### Анимированный пульт\n- Карточка стала компактнее\n- Управляющие кнопки отделены от пассивных сенсоров\n- Сенсоры состояния уменьшены и собраны в отдельный блок\n- Уменьшен автомобиль и вертикальные отступы\n\n### Основная карточка\n- Коды последних remote-команд отображаются понятными названиями\n- 0x09 отображается как Багажник\n\nHotfix поверх v1.1.1.'

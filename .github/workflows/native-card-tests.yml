@@ -36,3 +36,7 @@ jobs:
           grep -q '"fuel_percent": ExtraSensorDef' custom_components/gwm_ru/const.py
           grep -q 'calculate_fuel_percent(state.get("fuel_liters"), tank_capacity_number)' custom_components/gwm_ru/api.py
           grep -q 'state\["engine_on"\] = _state_equals(engine_item_state, "2")' custom_components/gwm_ru/helpers.py
+          grep -q "entry.platform==='gwm_ru'" custom_components/gwm_ru/frontend/gwm-vehicle-trips-card.js
+          grep -q "_location" custom_components/gwm_ru/frontend/gwm-vehicle-trips-card.js
+          grep -q 'class="control-zone"' custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
+          grep -q 'class="sensor-zone"' custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
