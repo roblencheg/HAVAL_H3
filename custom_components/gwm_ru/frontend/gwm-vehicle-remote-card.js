@@ -182,7 +182,13 @@
           .grid label,.check{display:flex;align-items:center;gap:8px;min-height:30px;font-size:13px}
           .note{padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--primary-color) 7%,transparent);font-size:12px;color:var(--secondary-text-color);line-height:1.5}
           @media(max-width:520px){.grid{grid-template-columns:1fr}}
-        </style>
+        
+          /* Native/Bubble/Mushroom editor density */
+          input[type=text]{min-height:40px;border-radius:20px;padding:0 12px;background:var(--secondary-background-color,var(--card-background-color));font-size:13px}
+          .grid{gap:8px 12px}
+          .grid label,.check{min-height:36px;font-size:13px}
+          .note{border-radius:18px;padding:10px 12px;background:var(--secondary-background-color);font-size:12px}
+</style>
         <div class="editor">
           <div class="row">
             <label class="field">Название
