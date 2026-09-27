@@ -19,28 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third-party components
-----------------------
-
-This repository includes third-party components that are distributed under
-their own licenses in addition to this repository's MIT-licensed code.
-
-The animated vehicle remote card and related visual assets derived from
-StarLine Card are distributed under GPL-3.0-only. See:
-
-  custom_components/gwm_ru/frontend/LICENSE.starline
-  custom_components/gwm_ru/frontend/THIRD_PARTY_NOTICES.md
-
-Other adapted third-party source code retains its original copyright and
-license notices in:
-
-  custom_components/gwm_ru/frontend/LICENSE.ha-gwm-jolion
-  custom_components/gwm_ru/frontend/THIRD_PARTY_NOTICES.md
-
-Those notices form part of the licensing information for the corresponding
-third-party portions and must be preserved when those portions are
-redistributed.
-
