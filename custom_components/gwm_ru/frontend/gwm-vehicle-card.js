@@ -48,6 +48,7 @@
     windscreenHeat: "_windshield_heater_on",
     seatDriver: "_driver_seat_heater_state",
     seatPassenger: "_passenger_seat_heater_state",
+    sunroofOpen: "_sunroof_open",
   };
 
   class GwmVehicleCard extends HTMLElement {
@@ -289,7 +290,7 @@
     _headerTitle() {
       if (this._config.title) return String(this._config.title);
 
-      const model = String(this._device?.model || "GWM vehicle").trim();
+      const model = String(this._device?.model || "автомобиля GWM").trim();
       const apiName = String(this._device?.name || "").trim();
       const drivetrain = this._drivetrain();
       const parts = [model];
@@ -1648,7 +1649,7 @@
     window.customCards.push({
       type: "gwm-vehicle-card",
       name: "GWM RU",
-      description: "Карточка автомобиля GWM vehicle для интеграции GWM RU",
+      description: "Карточка автомобиля автомобиля GWM для интеграции GWM RU",
       preview: true,
       documentationURL: "https://github.com/roblencheg/HAVAL_H3",
     });
