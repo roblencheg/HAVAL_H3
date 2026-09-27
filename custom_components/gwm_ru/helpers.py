@@ -145,6 +145,10 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     state["window_rl_open"] = _window_open(state.get("window_rl_state"))
     state["window_rr_open"] = _window_open(state.get("window_rr_state"))
     state["sunroof_open"] = _sunroof_open(state.get("sunroof_state"))
+    door_values = [state.get(key) for key in ("door_fl_open", "door_fr_open", "door_rl_open", "door_rr_open")]
+    state["doors_open"] = any(value is True for value in door_values) if any(value is not None for value in door_values) else None
+    window_values = [state.get(key) for key in ("window_fl_open", "window_fr_open", "window_rl_open", "window_rr_open")]
+    state["windows_open"] = any(value is True for value in window_values) if any(value is not None for value in window_values) else None
     state["rear_defroster_on"] = _state_equals(state.get("rear_defroster_state"), "1")
     # Seat heater states are level values (0..3), not booleans.
     state["driver_seat_heater_on"] = _state_positive(state.get("driver_seat_heater_state"))
