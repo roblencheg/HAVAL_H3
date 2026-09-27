@@ -1,6 +1,6 @@
-/* GWM RU primary card visual editor v0.1.0-beta.25 */
+/* GWM RU primary card visual editor v0.1.0-beta.26 */
 (() => {
-  const CARD_VERSION = "0.1.0-beta.25";
+  const CARD_VERSION = "0.1.0-beta.26";
 
   const CONTROL_OPTIONS = [
     ["engine", "Двигатель"],
@@ -198,7 +198,7 @@
           <div class="fields">
             <label class="field">
               Название карточки (необязательно)
-              <input id="title" type="text" value="${escapeHtml(title)}" placeholder="GWM vehicle">
+              <input id="title" type="text" value="${escapeHtml(title)}" placeholder="Haval">
             </label>
             <label class="field">
               Привод (необязательно)
