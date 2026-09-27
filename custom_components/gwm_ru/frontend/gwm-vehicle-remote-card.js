@@ -691,7 +691,7 @@
           </button>
         `;
       }).join("");
-      return items ? `<div class="remote-controls">${items}</div>` : "";
+      return items ? `<section class="control-zone"><div class="section-label">Управление</div><div class="remote-controls">${items}</div></section>` : "";
     }
 
     _render() {
@@ -893,6 +893,48 @@
             .remote-controls,.status-dock,.info-grid { grid-template-columns:1fr; }
             .vehicle-name { padding-right:0; margin-bottom:48px; }
           }
+
+          /* v1.1.2 compact remote layout */
+          .wrap{padding:12px 14px 14px}
+          .vehicle-name{font-size:18px;line-height:22px;padding-right:96px}
+          .connection-card{min-width:88px;padding:5px 8px;border-radius:15px;font-size:10px}
+          .gsm-line{margin-top:2px}
+          .starline-car{width:min(100%,280px);margin:8px auto 0}
+          .section-label{margin:10px 2px 6px;color:var(--secondary-text-color);font-size:11px;line-height:16px;font-weight:600}
+          .control-zone{margin-top:4px}
+          .remote-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0}
+          .remote-action{min-height:44px;padding:4px 10px 4px 6px;border-radius:22px;gap:8px}
+          .action-circle,
+          .remote-action:nth-child(2) .action-circle,
+          .remote-action:nth-child(n+4) .action-circle{
+            width:32px;height:32px;flex-basis:32px;border-radius:16px
+          }
+          .action-circle ha-icon,
+          .remote-action:nth-child(n+4) ha-icon{--mdc-icon-size:18px}
+          .remote-action>span:last-child{font-size:12px;line-height:15px}
+          .sensor-zone{margin-top:12px;padding-top:2px;border-top:1px solid var(--divider-color)}
+          .status-dock,.info-grid{
+            grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+            gap:4px
+          }
+          .status-dock{padding-top:0}
+          .status-tile,.info-tile{
+            min-height:36px;border-radius:18px;padding:4px 8px;gap:6px
+          }
+          .status-icon{
+            width:26px;height:26px;flex-basis:26px;border-radius:13px
+          }
+          .status-icon ha-icon,.info-tile>ha-icon{--mdc-icon-size:16px}
+          .status-copy small,.info-tile small{font-size:9px;line-height:11px}
+          .status-copy strong,.info-tile strong{font-size:11px;line-height:13px;font-weight:500}
+          .info-grid{margin-top:4px}
+          .info-tile{color:var(--primary-color)}
+          .info-tile>div{gap:0}
+          @container(max-width:330px){
+            .remote-controls{grid-template-columns:1fr}
+            .status-dock,.info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+            .vehicle-name{padding-right:0;margin-bottom:42px}
+          }
 </style>
 
         <ha-card class="${(this._config.dark ?? this._hass?.themes?.darkMode ?? false) ? "dark" : "light"}">
@@ -913,8 +955,11 @@
             </div>
 
             ${this._renderControls()}
-            ${this._renderStatuses()}
-            ${this._renderInfo()}
+            <section class="sensor-zone">
+              <div class="section-label">Состояние</div>
+              ${this._renderStatuses()}
+              ${this._renderInfo()}
+            </section>
           </div>
         </ha-card>
       `;
