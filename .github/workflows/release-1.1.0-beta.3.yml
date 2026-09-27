@@ -1,0 +1,31 @@
+name: Release v1.1.0-beta.3
+
+on:
+  push:
+    branches:
+      - feature/native-dashboard-cards
+    paths:
+      - .github/workflows/release-1.1.0-beta.3.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1.0-beta.3 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.1.0-beta.3 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.1.0-beta.3" \
+            --prerelease \
+            --notes $'## Современный рефакторинг карточек\n\n- Визуальная система приведена к актуальным паттернам Home Assistant Tile/Sections, Bubble Card и Mushroom\n- Основные действия: 56 px pill-контролы\n- Статусы и вторичные действия: компактные 36 px chips/sub-buttons\n- Типографика приведена к 14/12 px и более спокойной иерархии\n- Убраны тяжёлые декоративные элементы вокруг пульта, сохранена анимация автомобиля\n- Карточка поездок и редакторы приведены к той же системе\n- Никаких внешних frontend-зависимостей не добавлено\n- Сохраняется исправленный поиск только сущностей gwm_ru и заголовок Haval по умолчанию.'
