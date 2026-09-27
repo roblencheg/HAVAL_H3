@@ -289,7 +289,7 @@
     _headerTitle() {
       if (this._config.title) return String(this._config.title);
 
-      const model = String(this._device?.model || "Haval Vehicle").trim();
+      const model = String(this._device?.model || "GWM vehicle").trim();
       const apiName = String(this._device?.name || "").trim();
       const drivetrain = this._drivetrain();
       const parts = [model];
@@ -297,7 +297,7 @@
       if (
         apiName &&
         apiName.toLocaleLowerCase() !== model.toLocaleLowerCase() &&
-        apiName.toLocaleLowerCase() !== "gwm jolion"
+        apiName.toLocaleLowerCase() !== "gwm vehicle"
       ) {
         parts.push(apiName);
       }
@@ -1416,20 +1416,10 @@
       }
 
       if (action === "lock") {
-        const entityId = this._entities.lock;
-        if (!entityId) {
-          return alert("GWM RU: сущность центрального замка не найдена");
-        }
-        if (
-          !this._confirm(
-            unlocked ? "Закрыть автомобиль?" : "Разблокировать автомобиль?"
-          )
-        ) {
-          return;
-        }
+        if (!this._confirm(unlocked ? "Закрыть автомобиль?" : "Разблокировать автомобиль?")) return;
         return this._runBusy(action, () =>
-          this._hass.callService("lock", unlocked ? "lock" : "unlock", {
-            entity_id: entityId,
+          this._hass.callService(INTEGRATION, unlocked ? "lock_vehicle" : "unlock_vehicle", {
+            entry_id: this._entryId,
           })
         );
       }
@@ -1658,7 +1648,7 @@
     window.customCards.push({
       type: "gwm-vehicle-card",
       name: "GWM RU",
-      description: "Карточка автомобиля Haval Vehicle для интеграции GWM RU",
+      description: "Карточка автомобиля GWM vehicle для интеграции GWM RU",
       preview: true,
       documentationURL: "https://github.com/roblencheg/HAVAL_H3",
     });
