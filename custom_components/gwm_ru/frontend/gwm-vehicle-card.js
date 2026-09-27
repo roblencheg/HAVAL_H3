@@ -988,7 +988,160 @@
             .tires { grid-template-columns:repeat(2,1fr); }
             .title h2 { font-size:18px; }
           }
-        </style>
+                  /* 2026 reference baseline: HA Tile/Sections + Bubble Card + Mushroom typography */
+          :host {
+            --gwm-row-height:56px;
+            --gwm-pill-radius:28px;
+            --gwm-chip-height:36px;
+            --gwm-chip-radius:19px;
+            --gwm-sub-button:36px;
+            --gwm-gap:8px;
+            --gwm-surface:var(--secondary-background-color,color-mix(in srgb,var(--primary-text-color) 6%,var(--card-background-color)));
+          }
+          ha-card {
+            border-radius:var(--ha-card-border-radius,20px);
+            border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));
+            box-shadow:var(--ha-card-box-shadow,none);
+          }
+          .wrap { padding:16px; }
+          .header { min-height:40px; }
+          .title h2 { font-size:20px; font-weight:600; line-height:1.25; }
+          .online {
+            min-height:var(--gwm-chip-height);
+            padding:0 12px;
+            border-radius:var(--gwm-chip-radius);
+            background:var(--gwm-surface);
+            font-size:12px;
+            font-weight:400;
+          }
+          .dot { width:8px; height:8px; }
+          .stats { gap:var(--gwm-gap); margin-top:16px; }
+          .stat {
+            min-height:var(--gwm-row-height);
+            display:grid;
+            align-content:center;
+            border-radius:var(--gwm-pill-radius);
+            padding:7px 16px;
+            background:var(--gwm-surface);
+          }
+          .stat span { font-size:12px; font-weight:400; }
+          .stat b { margin-top:2px; font-size:14px; font-weight:500; }
+          .chips { gap:var(--gwm-gap); margin-top:8px; }
+          .chip {
+            min-height:var(--gwm-chip-height);
+            border-radius:var(--gwm-chip-radius);
+            padding:0 12px;
+            font-size:12px;
+            font-weight:500;
+          }
+          .section { margin-top:20px; }
+          .section-title {
+            margin:0 0 8px;
+            font-size:14px;
+            line-height:20px;
+            letter-spacing:0;
+            font-weight:600;
+            text-transform:none;
+            color:var(--primary-text-color);
+          }
+          .controls,.comfort {
+            grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:var(--gwm-gap);
+          }
+          .control {
+            min-height:var(--gwm-row-height);
+            border-radius:var(--gwm-pill-radius);
+            padding:6px 14px 6px 8px;
+            gap:10px;
+            background:var(--gwm-surface);
+            transition:background-color 180ms ease,transform 120ms ease;
+          }
+          .control:hover {
+            background:color-mix(in srgb,var(--primary-color) 10%,var(--gwm-surface));
+          }
+          .control ha-icon {
+            --mdc-icon-size:20px;
+            width:40px;
+            height:40px;
+            display:grid;
+            place-items:center;
+            border-radius:20px;
+            background:color-mix(in srgb,var(--primary-color) 12%,transparent);
+            color:var(--primary-color);
+          }
+          .control.active {
+            background:color-mix(in srgb,var(--primary-color) 12%,var(--gwm-surface));
+          }
+          .control.active ha-icon {
+            background:var(--primary-color);
+            color:var(--text-primary-color,#fff);
+          }
+          .control.danger ha-icon {
+            background:color-mix(in srgb,var(--error-color,#d32f2f) 14%,transparent);
+            color:var(--error-color,#d32f2f);
+          }
+          .control.experimental ha-icon {
+            background:color-mix(in srgb,var(--warning-color,#f9a825) 14%,transparent);
+            color:var(--warning-color,#f9a825);
+          }
+          .control-copy { gap:1px; }
+          .control-copy strong { font-size:14px; font-weight:500; }
+          .control-copy small { font-size:12px; font-weight:400; line-height:16px; }
+          .timer-panel,.climate-panel,.seat-panel,.preparation {
+            border-radius:24px;
+            background:var(--gwm-surface);
+            box-shadow:none;
+          }
+          .timer-panel,.climate-panel { padding:16px; }
+          .timer-head span,.runtime b { font-size:12px; }
+          .temp-btn {
+            width:var(--gwm-sub-button);
+            height:var(--gwm-sub-button);
+            border-radius:18px;
+            border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));
+            background:var(--card-background-color);
+            font-size:20px;
+          }
+          .temp strong { font-size:26px; font-weight:500; }
+          .tire {
+            min-height:64px;
+            display:grid;
+            align-content:center;
+            border-radius:20px;
+            background:var(--gwm-surface);
+            padding:10px 8px;
+          }
+          .tire strong { font-size:12px; font-weight:400; }
+          .tire span { font-size:14px; font-weight:500; margin-top:2px; }
+          .system { gap:8px; }
+          .system-item {
+            min-height:var(--gwm-chip-height);
+            padding:0 10px;
+            border-radius:var(--gwm-chip-radius);
+            background:var(--gwm-surface);
+            font-size:12px;
+          }
+          .preparation { padding:16px; }
+          .preparation button,.preparation select,#profile-name {
+            min-height:40px;
+            border-radius:20px;
+            border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));
+            background:var(--card-background-color);
+            font-size:13px;
+          }
+          #preparation-start {
+            min-height:var(--gwm-row-height);
+            border-radius:var(--gwm-pill-radius);
+          }
+          @media (max-width:600px) {
+            .wrap { padding:14px; }
+            .stats,.controls,.comfort,.tires { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .title h2 { font-size:20px; }
+          }
+          @media (max-width:380px) {
+            .controls,.comfort { grid-template-columns:1fr; }
+          }
+</style>
 
         ${this._profileEditorHost ? this._profilePanel() : `<ha-card>
           <div class="wrap">
@@ -1225,159 +1378,6 @@
           .seat-panel>.control{width:100%;margin-top:12px}
           .seat-name input{accent-color:var(--primary-color)}
         
-          /* 2026 reference baseline: HA Tile/Sections + Bubble Card + Mushroom typography */
-          :host {
-            --gwm-row-height:56px;
-            --gwm-pill-radius:28px;
-            --gwm-chip-height:36px;
-            --gwm-chip-radius:19px;
-            --gwm-sub-button:36px;
-            --gwm-gap:8px;
-            --gwm-surface:var(--secondary-background-color,color-mix(in srgb,var(--primary-text-color) 6%,var(--card-background-color)));
-          }
-          ha-card {
-            border-radius:var(--ha-card-border-radius,20px);
-            border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));
-            box-shadow:var(--ha-card-box-shadow,none);
-          }
-          .wrap { padding:16px; }
-          .header { min-height:40px; }
-          .title h2 { font-size:20px; font-weight:600; line-height:1.25; }
-          .online {
-            min-height:var(--gwm-chip-height);
-            padding:0 12px;
-            border-radius:var(--gwm-chip-radius);
-            background:var(--gwm-surface);
-            font-size:12px;
-            font-weight:400;
-          }
-          .dot { width:8px; height:8px; }
-          .stats { gap:var(--gwm-gap); margin-top:16px; }
-          .stat {
-            min-height:var(--gwm-row-height);
-            display:grid;
-            align-content:center;
-            border-radius:var(--gwm-pill-radius);
-            padding:7px 16px;
-            background:var(--gwm-surface);
-          }
-          .stat span { font-size:12px; font-weight:400; }
-          .stat b { margin-top:2px; font-size:14px; font-weight:500; }
-          .chips { gap:var(--gwm-gap); margin-top:8px; }
-          .chip {
-            min-height:var(--gwm-chip-height);
-            border-radius:var(--gwm-chip-radius);
-            padding:0 12px;
-            font-size:12px;
-            font-weight:500;
-          }
-          .section { margin-top:20px; }
-          .section-title {
-            margin:0 0 8px;
-            font-size:14px;
-            line-height:20px;
-            letter-spacing:0;
-            font-weight:600;
-            text-transform:none;
-            color:var(--primary-text-color);
-          }
-          .controls,.comfort {
-            grid-template-columns:repeat(2,minmax(0,1fr));
-            gap:var(--gwm-gap);
-          }
-          .control {
-            min-height:var(--gwm-row-height);
-            border-radius:var(--gwm-pill-radius);
-            padding:6px 14px 6px 8px;
-            gap:10px;
-            background:var(--gwm-surface);
-            transition:background-color 180ms ease,transform 120ms ease;
-          }
-          .control:hover {
-            background:color-mix(in srgb,var(--primary-color) 10%,var(--gwm-surface));
-          }
-          .control ha-icon {
-            --mdc-icon-size:20px;
-            width:40px;
-            height:40px;
-            display:grid;
-            place-items:center;
-            border-radius:20px;
-            background:color-mix(in srgb,var(--primary-color) 12%,transparent);
-            color:var(--primary-color);
-          }
-          .control.active {
-            background:color-mix(in srgb,var(--primary-color) 12%,var(--gwm-surface));
-          }
-          .control.active ha-icon {
-            background:var(--primary-color);
-            color:var(--text-primary-color,#fff);
-          }
-          .control.danger ha-icon {
-            background:color-mix(in srgb,var(--error-color,#d32f2f) 14%,transparent);
-            color:var(--error-color,#d32f2f);
-          }
-          .control.experimental ha-icon {
-            background:color-mix(in srgb,var(--warning-color,#f9a825) 14%,transparent);
-            color:var(--warning-color,#f9a825);
-          }
-          .control-copy { gap:1px; }
-          .control-copy strong { font-size:14px; font-weight:500; }
-          .control-copy small { font-size:12px; font-weight:400; line-height:16px; }
-          .timer-panel,.climate-panel,.seat-panel,.preparation {
-            border-radius:24px;
-            background:var(--gwm-surface);
-            box-shadow:none;
-          }
-          .timer-panel,.climate-panel { padding:16px; }
-          .timer-head span,.runtime b { font-size:12px; }
-          .temp-btn {
-            width:var(--gwm-sub-button);
-            height:var(--gwm-sub-button);
-            border-radius:18px;
-            border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));
-            background:var(--card-background-color);
-            font-size:20px;
-          }
-          .temp strong { font-size:26px; font-weight:500; }
-          .tire {
-            min-height:64px;
-            display:grid;
-            align-content:center;
-            border-radius:20px;
-            background:var(--gwm-surface);
-            padding:10px 8px;
-          }
-          .tire strong { font-size:12px; font-weight:400; }
-          .tire span { font-size:14px; font-weight:500; margin-top:2px; }
-          .system { gap:8px; }
-          .system-item {
-            min-height:var(--gwm-chip-height);
-            padding:0 10px;
-            border-radius:var(--gwm-chip-radius);
-            background:var(--gwm-surface);
-            font-size:12px;
-          }
-          .preparation { padding:16px; }
-          .preparation button,.preparation select,#profile-name {
-            min-height:40px;
-            border-radius:20px;
-            border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));
-            background:var(--card-background-color);
-            font-size:13px;
-          }
-          #preparation-start {
-            min-height:var(--gwm-row-height);
-            border-radius:var(--gwm-pill-radius);
-          }
-          @media (max-width:600px) {
-            .wrap { padding:14px; }
-            .stats,.controls,.comfort,.tires { grid-template-columns:repeat(2,minmax(0,1fr)); }
-            .title h2 { font-size:20px; }
-          }
-          @media (max-width:380px) {
-            .controls,.comfort { grid-template-columns:1fr; }
-          }
 </style>
         <strong>Подогрев сидений</strong>
         ${seats.map(([key, , sensor, label]) => `<div class="seat-row">
