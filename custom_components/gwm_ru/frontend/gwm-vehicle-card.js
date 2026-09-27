@@ -1,6 +1,6 @@
-/* GWM RU Card v0.1.0-beta.28 */
+/* GWM RU Card v1.0.0 */
 (() => {
-  const CARD_VERSION = "0.1.0-beta.28";
+  const CARD_VERSION = "1.0.0";
   const INTEGRATION = "gwm_ru";
 
   const SUFFIX = {
