@@ -12,6 +12,7 @@ from .const import ITEM_MAP, KPA_TO_ATM, Conversion
 _LOGGER = logging.getLogger(__name__)
 
 STATUS_ITEM_MAP: dict[str, str] = {
+    "2016001": "engine_state_raw",
     "2208001": "lock_state",
     "2206001": "trunk_state",
     "2206002": "door_fl_state",
@@ -168,9 +169,17 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     state["tire_rl_temp_alarm"] = _state_equals(state.get("tire_rl_temp_alarm_state"), "1")
     state["tire_rr_temp_alarm"] = _state_equals(state.get("tire_rr_temp_alarm_state"), "1")
 
-    engine_state = status.get("hyEngSts")
-    state["engine_state"] = value_to_number(engine_state) if engine_state is not None else None
-    state["engine_on"] = _state_equals(state.get("engine_state"), "1")
+    # Confirmed GWM telemetry item 2016001 uses 0=OFF and 2=RUNNING.
+    # Older payloads may expose only top-level hyEngSts, where this integration
+    # historically treated 1 as running. Keep that as a compatibility fallback.
+    engine_item_state = state.get("engine_state_raw")
+    if engine_item_state is not None:
+        state["engine_state"] = engine_item_state
+        state["engine_on"] = _state_equals(engine_item_state, "2")
+    else:
+        engine_state = status.get("hyEngSts")
+        state["engine_state"] = value_to_number(engine_state) if engine_state is not None else None
+        state["engine_on"] = _state_equals(state.get("engine_state"), "1")
     state["vehicle_status"] = _build_vehicle_status(state)
 
     tbox_status = tbox.get("status") if isinstance(tbox, dict) else None
@@ -178,6 +187,19 @@ def build_state(status: dict[str, Any], tbox: dict[str, Any]) -> dict[str, Any]:
     state["tbox_online"] = str(tbox_status) == "1"
     return state
 
+
+
+
+def calculate_fuel_percent(fuel_liters: Any, tank_capacity_l: Any) -> int | None:
+    """Calculate fuel percentage only when both cloud values are usable."""
+    try:
+        fuel = float(fuel_liters)
+        capacity = float(tank_capacity_l)
+    except (TypeError, ValueError):
+        return None
+    if capacity <= 0:
+        return None
+    return max(0, min(100, round(fuel / capacity * 100)))
 
 def redact_vehicle(vehicle: dict[str, Any]) -> dict[str, Any]:
     hidden = {"vin", "showedVin", "engineNo", "simIccid", "imsi"}
