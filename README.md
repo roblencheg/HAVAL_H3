@@ -1,6 +1,8 @@
 # GWM RU for Home Assistant
 
-Неофициальная интеграция для российского облака **GWM / HAVAL / TANK / ORA / WEY**: состояние автомобиля, удалённое управление и четыре встроенные карточки Dashboard.
+![Горизонтальный пульт Studio в Home Assistant: управление и телеметрия Haval H3](docs/images/remote-studio-horizontal.png)
+
+Неофициальная интеграция для российского облака **GWM / HAVAL / TANK / ORA / WEY**: состояние автомобиля, удалённое управление и шесть встроенных карточек Dashboard.
 
 Проверено на **Haval H3** через российское приложение GWM 2.3.1. Доступность функций на других автомобилях зависит от модели и данных облака.
 
@@ -72,11 +74,35 @@
 - `custom:gwm-vehicle-remote-modern-horizontal-card` — Studio, горизонтальный
 - `custom:gwm-vehicle-trips-card`
 
-Например:
+Пример горизонтального пульта Studio:
 
 ```yaml
-type: custom:gwm-vehicle-card
+type: custom:gwm-vehicle-remote-modern-horizontal-card
+controls:
+  - engine
+  - lock
+  - climate
+  - trunk
+  - refresh
+  - seat_heating
+  - steering
+  - rear_defrost
+  - sunroof
+telemetry:
+  - engine
+  - climate
+  - fuel
+  - mileage
+  - doors
+  - trunk
+  - lock
+  - range
+confirm_controls: true
+grid_options:
+  columns: full
 ```
+
+Чтобы показать название, добавьте `title: Haval H3`. Чтобы показать уровень GSM, добавьте `gsm` в `telemetry`. Эти параметры также доступны в визуальном редакторе.
 
 </details>
 
