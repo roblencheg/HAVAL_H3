@@ -126,6 +126,9 @@
         car_color: "#7b8792",
         ...config,
       };
+      if (!Array.isArray(this._config.telemetry)) {
+        this._config.telemetry = [...new Set([...(Array.isArray(this._config.statuses) ? this._config.statuses : DEFAULT_STATUSES), ...(Array.isArray(this._config.info) ? this._config.info : DEFAULT_INFO)])];
+      }
       this._render();
     }
 
@@ -192,15 +195,14 @@
         <div class="editor">
           <div class="row">
             <label class="field">Название
-              <input id="title" type="text" value="${this._escape(this._config.title || "")}" placeholder="автомобиля GWM">
+              <input id="title" type="text" value="${this._escape(this._config.title || "")}" placeholder="Не показывать название">
             </label>
 
           </div>
           <label class="check"><input id="dark" type="checkbox" ${this._config.dark === true ? "checked" : ""}>Тёмное оформление (иначе — тема Home Assistant)</label>
           <label class="check"><input id="confirm" type="checkbox" ${this._config.confirm_controls !== false ? "checked" : ""}>Подтверждать удалённые команды</label>
           ${this._group("Кнопки управления", "controls", CONTROL_OPTIONS)}
-          ${this._group("Дополнительная информация", "info", INFO_OPTIONS)}
-          ${this._group("Статусные плитки", "statuses", STATUS_OPTIONS)}
+          ${this._group("Состояние и информация", "telemetry", [...new Map([...STATUS_OPTIONS, ...INFO_OPTIONS].map(option => [option[0], option])).values()])}
           <div class="note">
             Оформление StarLine: подсветка закрытого замка, анимация двигателя, индикация дверей и багажника.
             Команды и данные автомобиля предоставляет интеграция GWM RU.
@@ -429,9 +431,15 @@
     }
 
     _title() {
-      if (this._config.title) return String(this._config.title);
-      const drivetrain = this._drivetrain();
-      return drivetrain ? `Haval ${drivetrain}` : "Haval";
+      return String(this._config.title ?? "").trim();
+    }
+
+    _telemetryIds() {
+      // Legacy YAML remains valid. Explicit telemetry is the unified selection.
+      const selected = Array.isArray(this._config.telemetry)
+        ? this._config.telemetry
+        : [...(Array.isArray(this._config.statuses) ? this._config.statuses : DEFAULT_STATUSES), ...(Array.isArray(this._config.info) ? this._config.info : DEFAULT_INFO)];
+      return [...new Set(selected)];
     }
 
     _relativeUpdate() {
@@ -576,13 +584,14 @@
     }
 
     _renderStatuses() {
-      const selected = Array.isArray(this._config.statuses) ? this._config.statuses : DEFAULT_STATUSES;
+      const selected = this._telemetryIds();
+      if (!selected.length) return "";
       return `
         <div class="status-dock">
           ${selected.map((id) => {
-            const meta = this._statusMeta(id);
+            const meta = this._statusMeta(id) || this._infoMeta(id);
             return meta ? `
-              <div class="status-tile ${meta[3]}" data-status="${id}">
+              <div class="status-tile ${meta[3] || "info"}" data-status="${id}">
                 <span class="status-icon">${this._icon(meta[0])}</span>
                 <span class="status-copy">
                   <small>${this._escape(meta[1])}</small>
@@ -614,21 +623,8 @@
     }
 
     _renderInfo() {
-      const selected = Array.isArray(this._config.info) ? this._config.info : DEFAULT_INFO;
-      const items = selected.map((id) => this._infoMeta(id)).filter(Boolean);
-      return items.length ? `
-        <div class="info-grid">
-          ${items.map((meta) => `
-            <div class="info-tile">
-              ${this._icon(meta[0])}
-              <div>
-                <small>${this._escape(meta[1])}</small>
-                <strong>${this._escape(meta[2])}</strong>
-              </div>
-            </div>
-          `).join("")}
-        </div>
-      ` : "";
+      // Kept for subclasses that used the old split layout.
+      return "";
     }
 
     _controlMeta(id) {
@@ -915,7 +911,7 @@
           .sensor-zone{margin-top:12px;padding-top:2px;border-top:1px solid var(--divider-color)}
           .status-dock,.info-grid{
             grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
-            gap:4px
+            gap:8px
           }
           .status-dock{padding-top:0}
           .status-tile,.info-tile{
@@ -935,31 +931,27 @@
             .status-dock,.info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
             .vehicle-name{padding-right:0;margin-bottom:42px}
           }
+.no-title .starline-car{margin-top:38px}
 </style>
 
         <ha-card class="${(this._config.dark ?? this._hass?.themes?.darkMode ?? false) ? "dark" : "light"}">
           <div class="wrap">
-            <div class="hero">
-              <div class="vehicle-name">${this._escape(this._title())}</div>
+            <div class="hero ${this._title() ? "" : "no-title"}">
+              ${this._title() ? `<div class="vehicle-name">${this._escape(this._title())}</div>` : ""}
               <div class="connection-card ${onlineKnown ? (online ? "online" : "offline") : "unknown"}">
                 <div class="online-line">
                   <span class="dot"></span>
                   <span>${onlineKnown ? (online ? "Онлайн" : "Оффлайн") : "Нет данных"}</span>
-                </div>
-                <div class="gsm-line">
-                  <span>GSM</span>
-                  ${this._signalBars()}
                 </div>
               </div>
               ${this._carSvg()}
             </div>
 
             ${this._renderControls()}
-            <section class="sensor-zone">
-              <div class="section-label">Состояние</div>
+            ${this._telemetryIds().length ? `<section class="sensor-zone">
+              <div class="section-label">Состояние и информация</div>
               ${this._renderStatuses()}
-              ${this._renderInfo()}
-            </section>
+            </section>` : ""}
           </div>
         </ha-card>
       `;

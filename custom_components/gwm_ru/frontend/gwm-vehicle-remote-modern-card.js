@@ -29,9 +29,8 @@
           .studio{padding:20px;display:grid;gap:22px;min-width:0;--studio-surface:var(--secondary-background-color,#f3f4f6);--studio-muted:var(--secondary-text-color,#727272)}
           .dark{--studio-surface:var(--secondary-background-color,#252a32);--studio-muted:var(--secondary-text-color,#a5adb4)}
           header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-          .eyebrow{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--studio-muted);margin:0 0 8px}
           h2{margin:0;font-size:clamp(24px,6cqi,34px);line-height:1.1;letter-spacing:-.04em;font-weight:600;overflow-wrap:anywhere}
-          .connection{flex:0 0 auto;display:flex;align-items:center;gap:7px;border:1px solid var(--divider-color,#ddd);border-radius:99px;padding:8px 10px;font-size:11px;line-height:16px}
+          .connection{margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:7px;border:1px solid var(--divider-color,#ddd);border-radius:99px;padding:8px 10px;font-size:11px;line-height:16px}
           .dot{width:6px;height:6px;border-radius:50%;background:var(--studio-muted)}
           .online .dot{background:var(--success-color,#43a047)}.offline .dot{background:var(--error-color,#db4437)}
           .hero{min-width:0;display:flex;flex-direction:column}
@@ -92,17 +91,17 @@
         </style>
         <ha-card><div class="studio ${wide ? 'wide' : ''} ${dark ? 'dark' : ''}">
           <section class="hero">
-            <header><div><p class="eyebrow">GWM / Remote Studio</p><h2>${this._escape(this._title())}</h2></div>
+            <header>${this._title() ? `<h2>${this._escape(this._title())}</h2>` : ""}
               <div class="connection ${known ? online ? 'online' : 'offline' : ''}"><span class="dot"></span>${known ? online ? 'Онлайн' : 'Оффлайн' : 'Нет данных'}</div>
             </header>
             <div class="vehicle-scene">
-              <div class="scene-top"><span class="security-label">${this._icon(locked ? 'mdi:shield-lock-outline' : 'mdi:shield-outline')}${lockedKnown ? locked ? 'На охране' : 'Замок открыт' : 'Замок · нет данных'}</span><span>GSM ${this._escape(this._raw('signal') ?? '—')}/4</span></div>
+              <div class="scene-top"><span class="security-label">${this._icon(locked ? 'mdi:shield-lock-outline' : 'mdi:shield-outline')}${lockedKnown ? locked ? 'На охране' : 'Замок открыт' : 'Замок · нет данных'}</span></div>
               ${this._carSvg()}
               <div class="hero-footer"><span class="engine-state">${this._icon('mdi:engine-outline')}${engineKnown ? engine ? 'Двигатель работает' : 'Двигатель выключен' : 'Двигатель · нет данных'}</span><span class="update">${this._escape(this._relativeUpdate())}</span></div>
             </div>
           </section>
           ${this._renderControls()}
-          <section class="sensor-zone"><div class="section-label">Телеметрия</div>${this._renderStatuses()}${this._renderInfo()}</section>
+          ${this._telemetryIds().length ? `<section class="sensor-zone"><div class="section-label">Телеметрия</div>${this._renderStatuses()}</section>` : ""}
         </div></ha-card>`;
       const template = document.createElement('template');
       template.innerHTML = markup;
