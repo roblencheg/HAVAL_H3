@@ -1,10 +1,19 @@
 const { chromium } = require('playwright');
 const fs = require('node:fs');
+const mdi = require('@mdi/js');
 const assert = require('node:assert/strict');
 (async () => {
   const browser = await chromium.launch({headless:true});
   const page = await browser.newPage({viewport:{width:1440,height:1400}});
-  await page.setContent(`<style>body{margin:0;background:#252a32;--primary-color:#92c7c1;--primary-text-color:#e5e8ed;--secondary-text-color:#a3adb9;--card-background-color:#343b49;--secondary-background-color:#292f3a;--divider-color:#475060;--text-primary-color:#162423}ha-card{display:block}ha-icon{display:inline-block;width:20px;height:20px}</style>`);
+  await page.setContent(`<style>body{font-family:Roboto,Arial,sans-serif;margin:0;background:#252a32;--primary-color:#92c7c1;--primary-text-color:#e5e8ed;--secondary-text-color:#a3adb9;--card-background-color:#343b49;--secondary-background-color:#292f3a;--divider-color:#475060;--text-primary-color:#162423}ha-card{display:block}ha-icon{display:inline-block;width:20px;height:20px}</style>`);
+  await page.evaluate(paths => {
+    customElements.define('ha-icon', class extends HTMLElement {
+      static get observedAttributes(){return ['icon'];}
+      connectedCallback(){this.draw();}
+      attributeChangedCallback(){this.draw();}
+      draw(){const key='mdi'+(this.getAttribute('icon')||'').replace('mdi:','').split('-').map(s=>s.charAt(0).toUpperCase()+s.slice(1)).join('');this.innerHTML=`<svg viewBox="0 0 24 24" style="width:var(--mdc-icon-size,20px);height:var(--mdc-icon-size,20px);fill:currentColor"><path d="${paths[key]||''}"/></svg>`;}
+    });
+  },mdi);
   for (const file of ['gwm-vehicle-remote-card.js','gwm-vehicle-remote-horizontal-card.js','gwm-vehicle-remote-modern-card.js']) {
     await page.addScriptTag({content:fs.readFileSync(`custom_components/gwm_ru/frontend/${file}`,'utf8')});
   }
@@ -29,9 +38,22 @@ const assert = require('node:assert/strict');
     assert.equal(result.overflowing,0,`${tag} ${width}: horizontal overflow`);
     assert.equal(result.registered,1);
     assert.equal(result.actions,9);
+    await page.evaluate(() => {
+      const card=document.querySelector('[data-test]');
+      const button=card.shadowRoot.querySelector('[data-action="lock"]');button.focus();card._render();
+      if(card.shadowRoot.activeElement!==button)throw Error('Keyboard focus lost on telemetry update');
+      if(card.shadowRoot.querySelectorAll('style').length>2)throw Error('Duplicate styles after render');
+    });
     console.log(tag,width,result);
     if(width===1300 || width===390) await page.screenshot({path:`/tmp/${tag}-${width}.png`,fullPage:true});
   }
+  await page.evaluate(async () => {
+    const card=document.querySelector('[data-test]');let calls=0;
+    window.confirm=()=>false;card._hass.callService=async()=>{calls++;};
+    await card._handleAction('engine');if(calls)throw Error('Cancelled confirmation sent a command');
+    card._hass.callService=async(domain,service,data)=>{if(domain!=='gwm_ru'||service!=='engine_start'||data.operation_time!==15)throw Error('Unexpected command');calls++;};
+    window.confirm=()=>true;await card._handleAction('engine');if(calls!==1)throw Error('Confirmed command not sent exactly once');
+  });
   // Missing telemetry must keep commands disabled; custom titles are escaped.
   await page.evaluate(() => {
     const card=document.querySelector('[data-test]');

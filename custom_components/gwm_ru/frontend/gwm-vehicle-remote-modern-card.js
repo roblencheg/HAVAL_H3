@@ -23,7 +23,7 @@
       const wide = this.constructor.horizontal === true;
       const markup = `
         <style>
-          :host{display:block;container-type:inline-size;--studio-accent:var(--primary-color,#03a9f4)}
+          :host{display:block;font-family:var(--paper-font-body1_-_font-family,Roboto,system-ui,sans-serif);container-type:inline-size;--studio-accent:var(--primary-color,#03a9f4)}
           *{box-sizing:border-box}
           ha-card{display:block;overflow:hidden;color:var(--primary-text-color,#212121);background:var(--ha-card-background,var(--card-background-color,#fff));border:1px solid var(--ha-card-border-color,var(--divider-color,#ddd));border-radius:28px;box-shadow:var(--ha-card-box-shadow,none)}
           .studio{padding:20px;display:grid;gap:22px;min-width:0;--studio-surface:var(--secondary-background-color,#f3f4f6);--studio-muted:var(--secondary-text-color,#727272)}

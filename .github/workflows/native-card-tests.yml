@@ -61,7 +61,7 @@ jobs:
           node-version: '22'
       - name: Check responsive remote layouts
         run: |
-          npm install --no-save --package-lock=false playwright@1.58.2
+          npm install --no-save --package-lock=false playwright@1.58.2 @mdi/js@7.4.47
           npx playwright install --with-deps chromium
           node tests/remote-layouts.cjs
       - uses: actions/upload-artifact@v4

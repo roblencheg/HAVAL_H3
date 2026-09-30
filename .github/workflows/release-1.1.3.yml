@@ -23,7 +23,7 @@ jobs:
           for f in custom_components/gwm_ru/frontend/gwm-*.js; do node --input-type=module --check < "$f"; done
       - name: Browser layout and telemetry regression checks
         run: |
-          npm install --no-save --package-lock=false playwright@1.58.2
+          npm install --no-save --package-lock=false playwright@1.58.2 @mdi/js@7.4.47
           npx playwright install --with-deps chromium
           node tests/remote-layouts.cjs
   release:
