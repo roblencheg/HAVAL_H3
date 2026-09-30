@@ -45,7 +45,7 @@ from .trips_ws import register as register_trips
 _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
-FRONTEND_VERSION = "1.1.2"
+FRONTEND_VERSION = "1.1.3"
 FRONTEND_BUNDLE_PATH = "/gwm-vehicle/gwm-vehicle-bundle.js"
 FRONTEND_BUNDLE_URL = f"{FRONTEND_BUNDLE_PATH}?v={FRONTEND_VERSION}"
 FRONTEND_ASSETS = (
@@ -54,6 +54,8 @@ FRONTEND_ASSETS = (
     (FRONTEND_DIR / "gwm-vehicle-card-editor.js", "/gwm-vehicle/gwm-vehicle-card-editor.js"),
     (FRONTEND_DIR / "gwm-vehicle-card.js", "/gwm-vehicle/gwm-vehicle-card.js"),
     (FRONTEND_DIR / "gwm-vehicle-remote-card.js", "/gwm-vehicle/gwm-vehicle-remote-card.js"),
+    (FRONTEND_DIR / "gwm-vehicle-remote-horizontal-card.js", "/gwm-vehicle/gwm-vehicle-remote-horizontal-card.js"),
+    (FRONTEND_DIR / "gwm-vehicle-remote-modern-card.js", "/gwm-vehicle/gwm-vehicle-remote-modern-card.js"),
     (FRONTEND_DIR / "gwm-vehicle-compat.js", "/gwm-vehicle/gwm-vehicle-compat.js"),
 )
 DATA_FRONTEND_REGISTERED = "_frontend_registered"

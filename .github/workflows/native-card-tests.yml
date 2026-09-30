@@ -7,6 +7,8 @@ on:
       - ".github/workflows/native-card-tests.yml"
   push:
     branches:
+      - master
+      - fix/modern-remotes-v1.1.3
       - feature/native-dashboard-cards
     paths:
       - "custom_components/gwm_ru/**"
@@ -28,6 +30,8 @@ jobs:
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-card-editor.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
+          node --check custom_components/gwm_ru/frontend/gwm-vehicle-remote-horizontal-card.js
+          node --check custom_components/gwm_ru/frontend/gwm-vehicle-remote-modern-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-trips-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-compat.js
       - name: Regression checks for card data dependencies
@@ -40,3 +44,28 @@ jobs:
           grep -q "_location" custom_components/gwm_ru/frontend/gwm-vehicle-trips-card.js
           grep -q 'class="control-zone"' custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
           grep -q 'class="sensor-zone"' custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
+
+      - name: Check horizontal remote registration
+        run: |
+          grep -q 'gwm-vehicle-remote-horizontal-card' custom_components/gwm_ru/frontend/gwm-vehicle-bundle.js
+          grep -q 'grid-template-areas' custom_components/gwm_ru/frontend/gwm-vehicle-remote-horizontal-card.js
+          grep -q 'grid-area:controls' custom_components/gwm_ru/frontend/gwm-vehicle-remote-horizontal-card.js
+          grep -q 'grid-area:sensors' custom_components/gwm_ru/frontend/gwm-vehicle-remote-horizontal-card.js
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check responsive remote layouts
+        run: |
+          npm install --no-save --package-lock=false playwright@1.58.2
+          npx playwright install --with-deps chromium
+          node tests/remote-layouts.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remote-previews
+          path: /tmp/gwm-vehicle-remote-*.png

@@ -685,7 +685,7 @@
         const busy = this._busy.has(id) || (remoteBusy && id !== "refresh");
         const disabled = meta[3] || busy;
         return `
-          <button class="remote-action ${meta[2]} ${busy ? "busy" : ""}" ${disabled ? "disabled" : `data-action="${id}"`}>
+          <button data-control="${id}" class="remote-action ${meta[2]} ${busy ? "busy" : ""}" ${disabled ? "disabled" : `data-action="${id}"`}>
             <span class="action-circle">${this._icon(meta[0])}</span>
             <span>${this._escape(meta[1])}${meta[4] ? `<small style="display:block;font-size:11px;margin-top:4px">${this._escape(meta[4])}</small>` : ""}</span>
           </button>
