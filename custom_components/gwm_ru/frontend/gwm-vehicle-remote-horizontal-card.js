@@ -76,6 +76,8 @@
           margin:10px auto 0 !important;
         }
 
+        .hero.no-title .starline-car { margin-top:38px !important; }
+
         /* Actions remain visually dominant and isolated from passive state. */
         .control-zone {
           grid-area:controls;
@@ -149,7 +151,7 @@
         .status-dock {
           display:grid !important;
           grid-template-columns:repeat(4,minmax(0,1fr)) !important;
-          gap:6px !important;
+          gap:8px !important;
           margin:0 !important;
           padding:0 !important;
           border:0 !important;

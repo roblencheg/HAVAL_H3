@@ -1,0 +1,42 @@
+name: Release v1.1.4
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/release-1.1.4.yml
+      - custom_components/gwm_ru/**
+      - tests/remote-layouts.cjs
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          python -m compileall -q custom_components/gwm_ru
+          for f in custom_components/gwm_ru/frontend/gwm-*.js; do node --input-type=module --check < "$f"; done
+      - name: Browser layout and telemetry regression checks
+        run: |
+          npm install --no-save --package-lock=false playwright@1.58.2 @mdi/js@7.4.47
+          npx playwright install --with-deps chromium
+          node tests/remote-layouts.cjs
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create public stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1.4 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.1.4 --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "v1.1.4 — Remote Studio" --latest --notes-file docs/release-1.1.4.md
