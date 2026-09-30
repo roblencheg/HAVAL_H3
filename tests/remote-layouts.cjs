@@ -73,13 +73,52 @@ const assert = require('node:assert/strict');
     if([...checks].filter(el=>el.checked).length!==3)throw Error('Editor lost legacy selections');
     card.remove();
   },tag);
-  await page.evaluate(async () => {
-    const card=document.querySelector('[data-test]');let calls=0;
-    window.confirm=()=>false;card._hass.callService=async()=>{calls++;};
-    await card._handleAction('engine');if(calls)throw Error('Cancelled confirmation sent a command');
-    card._hass.callService=async(domain,service,data)=>{if(domain!=='gwm_ru'||service!=='engine_start'||data.operation_time!==15)throw Error('Unexpected command');calls++;};
-    window.confirm=()=>true;await card._handleAction('engine');if(calls!==1)throw Error('Confirmed command not sent exactly once');
-  });
+  // Exercise the real custom confirmation UI: no browser dialogs or services.
+  page.on('dialog', () => {throw Error('Unexpected browser confirm/alert');});
+  for(const tag of tags) for(const width of [390,1300]) {
+    await page.setViewportSize({width,height:900});
+    await page.evaluate(({tag,width}) => {
+      document.querySelectorAll('body > [data-test]').forEach(el=>el.remove());
+      const card=document.createElement(tag);card.dataset.test='true';card.style.width=`${width}px`;document.body.append(card);
+      card.setConfig({title:'Haval H3',controls:['engine','lock','sunroof']});card._resolvedKey='|';card._entryId='test-entry';
+      card._entities={engine:'sensor.engine',unlocked:'sensor.unlocked',doors:'sensor.doors',trunk:'sensor.trunk'};
+      window._calls=[];
+      card.hass={states:{'sensor.engine':{state:'off'},'sensor.unlocked':{state:'off'},'sensor.doors':{state:'off'},'sensor.trunk':{state:'off'}},themes:{darkMode:true},callService:async(...args)=>window._calls.push(args)};
+    },{tag,width});
+    const trigger=page.locator(`${tag} button[data-action="engine"]`);
+    await trigger.focus();await trigger.click();
+    const dialog=page.locator('gwm-remote-confirmation dialog');await dialog.waitFor({state:'visible'});
+    const box=await dialog.boundingBox();
+    assert.ok(Math.abs(box.x+box.width/2-width/2)<2,'Dialog not horizontally centered');
+    assert.ok(Math.abs(box.y+box.height/2-450)<2,'Dialog not vertically centered');
+    assert.equal(await page.evaluate(()=>window._calls.length),0,'Command sent before confirmation');
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(()=>document.querySelector('gwm-remote-confirmation').shadowRoot.activeElement.dataset.choice),'true');
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(()=>document.querySelector('gwm-remote-confirmation').shadowRoot.activeElement.className),'cancel');
+    if(tag.includes('modern-horizontal'))await page.screenshot({path:`/tmp/gwm-vehicle-remote-confirmation-${width}.png`,fullPage:true});
+    await page.keyboard.press('Escape');await dialog.waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>window._calls.length),0);
+    assert.equal(await trigger.evaluate(el=>el.getRootNode().activeElement===el),true,'Focus not restored');
+    await trigger.click();await page.locator('gwm-remote-confirmation .cancel').click();
+    assert.equal(await page.evaluate(()=>window._calls.length),0);
+    await trigger.click();await page.mouse.click(4,4);await dialog.waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>window._calls.length),0);
+    await trigger.click();await page.locator('gwm-remote-confirmation button[data-choice="true"]').click();
+    await page.waitForFunction(()=>window._calls.length===1);
+    assert.deepEqual(await page.evaluate(()=>window._calls[0]),['gwm_ru','engine_start',{operation_time:15}]);
+    // Unknown roof state has three explicit choices; cancellation never closes it.
+    const roof=page.locator(`${tag} button[data-action="sunroof"]`);
+    await roof.click();await page.locator('gwm-remote-confirmation .cancel').click();
+    assert.equal(await page.evaluate(()=>window._calls.length),1);
+    await roof.click();await page.locator('gwm-remote-confirmation button[data-choice="close"]').click();
+    await page.waitForFunction(()=>window._calls.length===2);
+    assert.equal(await page.evaluate(()=>window._calls[1][1]),'close_sunroof');
+    // Existing opt-out still bypasses confirmation.
+    await page.evaluate(async()=>{const card=document.querySelector('[data-test]');card._config.confirm_controls=false;await card._handleAction('engine');});
+    assert.equal(await page.evaluate(()=>window._calls.length),3);
+    assert.equal(await page.locator('gwm-remote-confirmation').count(),0);
+  }
   // Missing telemetry must keep commands disabled; custom titles are escaped.
   await page.evaluate(() => {
     const card=document.querySelector('[data-test]');

@@ -314,6 +314,7 @@
     }
 
     disconnectedCallback() {
+      this._dismissConfirmation?.();
       clearTimeout(this._resolveRetryTimer);
       this._resolveRetryTimer = null;
     }
@@ -986,8 +987,93 @@
       }
     }
 
-    _confirm(message) {
-      return this._config.confirm_controls === false || window.confirm(message);
+    async _confirm(message) {
+      if (this._config.confirm_controls === false) return true;
+      const label = message.match(/^(Запустить|Остановить|Открыть|Закрыть|Разблокировать|Включить|Выключить)/)?.[1] || "Подтвердить";
+      return await this._showConfirmation(message, [{value:true, label}]) === true;
+    }
+
+    _showConfirmation(message, choices) {
+      // A native top-layer dialog traps focus, isolates the dashboard and stays
+      // centered even inside cards with transforms or clipped overflow.
+      if (document.querySelector("gwm-remote-confirmation")) return Promise.resolve(null);
+      const host = document.createElement("gwm-remote-confirmation");
+      const root = host.attachShadow({mode:"open"});
+      const theme = getComputedStyle(this);
+      for (const token of ["--primary-color", "--primary-text-color", "--secondary-text-color", "--text-primary-color", "--card-background-color", "--ha-card-background", "--divider-color", "--secondary-background-color"]) {
+        const value = theme.getPropertyValue(token);
+        if (value.trim()) host.style.setProperty(token, value);
+      }
+      const icon = /двигател/i.test(message) ? "mdi:engine-outline" : /автомобил/i.test(message) ? "mdi:lock-outline" : /багажник/i.test(message) ? "mdi:car-back" : /климат/i.test(message) ? "mdi:air-conditioner" : "mdi:gesture-tap-button";
+      root.innerHTML = `
+        <style>
+          :host{font-family:Roboto,system-ui,sans-serif}
+          *{box-sizing:border-box}
+          dialog{position:fixed;inset:0;margin:auto;width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:24px;border:1px solid var(--divider-color,#ddd);border-radius:28px;background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color,#212121);box-shadow:0 24px 80px rgba(0,0,0,.24);font-family:inherit;animation:enter .16s ease-out}
+          dialog::backdrop{background:rgba(10,15,24,.55);backdrop-filter:blur(5px)}
+          .symbol{display:grid;place-items:center;width:52px;height:52px;margin-bottom:20px;border-radius:18px;background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,transparent);color:var(--primary-color,#03a9f4)}
+          ha-icon{--mdc-icon-size:26px}
+          .vehicle{margin:0 0 6px;font-size:12px;line-height:18px;color:var(--secondary-text-color,#727272);overflow-wrap:anywhere}
+          h2{margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.025em}
+          .message{margin:12px 0 24px;font-size:15px;line-height:23px;color:var(--secondary-text-color,#727272);overflow-wrap:anywhere}
+          .choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+          button{appearance:none;min-height:48px;padding:12px;border:0;border-radius:16px;font:inherit;font-size:14px;line-height:20px;font-weight:500;cursor:pointer;transition:filter .15s,transform .12s;background:var(--secondary-background-color,#f0f2f5);color:var(--primary-text-color,#212121)}
+          button.primary{background:var(--primary-color,#03a9f4);color:var(--text-primary-color,#fff)}
+          .multiple .cancel{grid-column:1/-1;grid-row:2}
+          button:hover{filter:brightness(.95)}button:active{transform:scale(.98)}
+          button:focus-visible{outline:2px solid var(--primary-color,#03a9f4);outline-offset:3px}
+          @keyframes enter{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+          @media(prefers-reduced-motion:reduce){dialog,button{animation:none;transition:none}}
+        </style>
+        <dialog aria-labelledby="confirm-title" aria-describedby="confirm-message">
+          <div class="symbol"><ha-icon icon="${icon}"></ha-icon></div>
+          ${this._title() ? `<p class="vehicle">${this._escape(this._title())}</p>` : ""}
+          <h2 id="confirm-title">${choices.length > 1 ? "Выберите действие" : "Подтвердить действие"}</h2>
+          <p class="message" id="confirm-message"></p>
+          <div class="choices ${choices.length > 1 ? "multiple" : ""}"><button class="cancel" type="button" autofocus>Отмена</button></div>
+        </dialog>`;
+      root.querySelector(".message").textContent = message;
+      const dialog = root.querySelector("dialog");
+      const previousFocus = this.shadowRoot.activeElement || document.activeElement;
+      return new Promise(resolve => {
+        let settled = false;
+        const finish = value => {
+          if (settled) return;
+          settled = true;
+          if (dialog.open) dialog.close();
+          host.remove();
+          this._dismissConfirmation = null;
+          if (previousFocus?.isConnected) previousFocus.focus({preventScroll:true});
+          resolve(value);
+        };
+        this._dismissConfirmation = () => finish(null);
+        root.querySelector(".cancel").addEventListener("click", () => finish(null));
+        for (const choice of choices) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "primary";
+          button.textContent = choice.label;
+          button.dataset.choice = String(choice.value);
+          button.addEventListener("click", () => finish(choice.value));
+          root.querySelector(".choices").append(button);
+        }
+        dialog.addEventListener("keydown", event => {
+          if (event.key !== "Tab") return;
+          const buttons = [...root.querySelectorAll("button")];
+          const first = buttons[0], last = buttons.at(-1);
+          if (event.shiftKey && root.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && root.activeElement === last) { event.preventDefault(); first.focus(); }
+        });
+        dialog.addEventListener("cancel", event => { event.preventDefault(); finish(null); });
+        dialog.addEventListener("close", () => finish(null));
+        let startedOutside = false;
+        const outside = event => { const rect = dialog.getBoundingClientRect(); return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom; };
+        dialog.addEventListener("pointerdown", event => { startedOutside = outside(event); });
+        dialog.addEventListener("click", event => { if (event.target === dialog && startedOutside && outside(event)) finish(null); });
+        document.body.append(host);
+        try { dialog.showModal(); root.querySelector(".cancel").focus(); }
+        catch (error) { console.error("[GWM RU] Confirmation dialog could not open", error); finish(null); }
+      });
     }
 
     async _runBusy(key, fn, onSuccess = null) {
@@ -1019,11 +1105,11 @@
         if (!this._entryId || !this._featureEnabled("seat_heat_driver") || !this._featureEnabled("seat_heat_passenger")) return;
         if (["seatDriver", "seatPassenger"].some(key => this._isUnavailable(key))) return;
         const on = ["seatDriver", "seatPassenger"].some(key => Number(this._state(key)?.state) > 0);
-        if (!this._confirm(on ? "Выключить оба подогрева?" : "Включить оба подогрева на уровень 3 на 10 минут?")) return;
+        if (!await this._confirm(on ? "Выключить оба подогрева?" : "Включить оба подогрева на уровень 3 на 10 минут?")) return;
         return this._runBusy(action, () => this._hass.callService(INTEGRATION, "set_seat_heating", {entry_id:this._entryId,driver:on ? 0 : 3,passenger:on ? 0 : 3,operation_time:10}));
       }
       if (action === "lock") {
-        if (!this._confirm(unlocked ? "Закрыть автомобиль?" : "Разблокировать автомобиль?")) return;
+        if (!await this._confirm(unlocked ? "Закрыть автомобиль?" : "Разблокировать автомобиль?")) return;
         return this._runBusy(action, () =>
           this._hass.callService(INTEGRATION, unlocked ? "lock_vehicle" : "unlock_vehicle", { entry_id: this._entryId }),
         );
@@ -1037,7 +1123,7 @@
           if (trunk) blockers.push("открыт багажник");
           if (blockers.length) return alert(`GWM RU: запуск недоступен — ${blockers.join(", ")}.`);
         }
-        if (!this._confirm(engine ? "Остановить двигатель?" : "Запустить двигатель на 15 минут?")) return;
+        if (!await this._confirm(engine ? "Остановить двигатель?" : "Запустить двигатель на 15 минут?")) return;
         return this._runBusy(action, () =>
           this._hass.callService(INTEGRATION, engine ? "engine_stop" : "engine_start", engine ? {} : { operation_time: 15 }),
         );
@@ -1046,21 +1132,21 @@
       if (action === "climate") {
         const entityId = this._entities.climate;
         if (!entityId) return alert("GWM RU: сущность климата не найдена");
-        if (!this._confirm(climate ? "Выключить климат?" : "Включить климат? На автомобиле с ДВС может запуститься двигатель.")) return;
+        if (!await this._confirm(climate ? "Выключить климат?" : "Включить климат? На автомобиле с ДВС может запуститься двигатель.")) return;
         return this._runBusy(action, () =>
           this._hass.callService("climate", climate ? "turn_off" : "turn_on", { entity_id: entityId }),
         );
       }
 
       if (action === "trunk") {
-        if (!this._confirm(trunk ? "Закрыть багажник?" : "Открыть багажник?")) return;
+        if (!await this._confirm(trunk ? "Закрыть багажник?" : "Открыть багажник?")) return;
         return this._runBusy(action, () =>
           this._hass.callService(INTEGRATION, trunk ? "close_trunk" : "open_trunk", {}),
         );
       }
 
       if (action === "windows") {
-        if (!this._confirm(windows ? "Закрыть все окна?" : "Открыть все окна? Команда открытия экспериментальная.")) return;
+        if (!await this._confirm(windows ? "Закрыть все окна?" : "Открыть все окна? Команда открытия экспериментальная.")) return;
         return this._runBusy(action, () =>
           this._hass.callService(INTEGRATION, windows ? "close_windows" : "open_windows", {}),
         );
@@ -1116,7 +1202,7 @@
     async _toggleComfort(action, key, onService, offService, label) {
       const current = !this._isUnavailable(key) ? this._isOn(key) : Boolean(this._assumed[key]);
       const next = !current;
-      if (!this._confirm(`${next ? "Включить" : "Выключить"} ${label}?`)) return;
+      if (!await this._confirm(`${next ? "Включить" : "Выключить"} ${label}?`)) return;
       return this._runBusy(
         action,
         () => this._hass.callService(INTEGRATION, next ? onService : offService, {}),
@@ -1125,19 +1211,25 @@
     }
 
     async _toggleRoof(action, key, openService, closeService, label) {
-      let current = this._assumed[key];
+      const current = this._assumed[key];
+      let next;
       if (current === undefined) {
-        const open = window.confirm(`${label[0].toUpperCase()}${label.slice(1)}: ОК — открыть, Отмена — закрыть.`);
-        current = !open;
+        const choice = await this._showConfirmation(`Что сделать: открыть или закрыть ${label}?`, [
+          {value:"open", label:"Открыть"}, {value:"close", label:"Закрыть"},
+        ]);
+        if (choice === null) return;
+        next = choice === "open";
+      } else {
+        next = !current;
+        if (!await this._confirm(`${next ? "Открыть" : "Закрыть"} ${label}?`)) return;
       }
-      const next = !current;
-      if (this._config.confirm_controls !== false && !this._confirm(`${next ? "Открыть" : "Закрыть"} ${label}?`)) return;
       return this._runBusy(
         action,
         () => this._hass.callService(INTEGRATION, next ? openService : closeService, {}),
         () => { this._assumed[key] = next; },
       );
     }
+
   }
 
   if (!customElements.get("gwm-vehicle-remote-card-editor")) {

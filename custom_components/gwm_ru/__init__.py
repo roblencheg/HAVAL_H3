@@ -45,7 +45,7 @@ from .trips_ws import register as register_trips
 _LOGGER = logging.getLogger(__name__)
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
-FRONTEND_VERSION = "1.1.4"
+FRONTEND_VERSION = "1.1.5"
 FRONTEND_BUNDLE_PATH = "/gwm-vehicle/gwm-vehicle-bundle.js"
 FRONTEND_BUNDLE_URL = f"{FRONTEND_BUNDLE_PATH}?v={FRONTEND_VERSION}"
 FRONTEND_ASSETS = (
