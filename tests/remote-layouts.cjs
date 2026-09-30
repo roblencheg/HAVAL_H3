@@ -88,6 +88,7 @@ const assert = require('node:assert/strict');
     const trigger=page.locator(`${tag} button[data-action="engine"]`);
     await trigger.focus();await trigger.click();
     const dialog=page.locator('gwm-remote-confirmation dialog');await dialog.waitFor({state:'visible'});
+    await dialog.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
     const box=await dialog.boundingBox();
     assert.ok(Math.abs(box.x+box.width/2-width/2)<2,'Dialog not horizontally centered');
     assert.ok(Math.abs(box.y+box.height/2-450)<2,'Dialog not vertically centered');
