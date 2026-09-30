@@ -41,8 +41,7 @@
           grid-template-columns:minmax(250px,.9fr) minmax(390px,1.45fr) !important;
           grid-template-areas:
             "hero controls"
-            "hero statuses"
-            "hero info" !important;
+            "hero sensors" !important;
           gap:10px 16px !important;
           align-items:start !important;
           padding:14px 16px !important;
@@ -77,8 +76,23 @@
         }
 
         /* Actions remain visually dominant and isolated from passive state. */
-        .remote-controls {
+        .control-zone {
           grid-area:controls;
+          margin:0 !important;
+          padding:0 !important;
+          border:0 !important;
+        }
+
+        .control-zone .section-label {
+          margin:0 0 6px !important;
+          font-size:10px !important;
+          line-height:12px !important;
+          letter-spacing:.04em;
+          text-transform:uppercase;
+          color:var(--secondary-text-color);
+        }
+
+        .remote-controls {
           display:grid !important;
           grid-template-columns:repeat(3,minmax(0,1fr)) !important;
           gap:7px !important;
@@ -115,8 +129,23 @@
         }
 
         /* Passive state is deliberately smaller than actions. */
+        .sensor-zone {
+          grid-area:sensors;
+          margin:0 !important;
+          padding:0 !important;
+          border:0 !important;
+        }
+
+        .sensor-zone .section-label {
+          margin:0 0 5px !important;
+          font-size:10px !important;
+          line-height:12px !important;
+          letter-spacing:.04em;
+          text-transform:uppercase;
+          color:var(--secondary-text-color);
+        }
+
         .status-dock {
-          grid-area:statuses;
           display:grid !important;
           grid-template-columns:repeat(4,minmax(0,1fr)) !important;
           gap:6px !important;
@@ -160,7 +189,6 @@
         }
 
         .info-grid {
-          grid-area:info;
           display:grid !important;
           grid-template-columns:repeat(4,minmax(0,1fr)) !important;
           gap:6px !important;
@@ -205,15 +233,16 @@
             margin:10px auto 4px !important;
           }
 
+          .control-zone { margin-top:12px !important; }
+          .sensor-zone { margin-top:10px !important; }
+
           .remote-controls {
             grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-            margin:12px 0 10px !important;
           }
 
           .status-dock,
           .info-grid {
             grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-            margin-top:8px !important;
           }
         }
       `;
