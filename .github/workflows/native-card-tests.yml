@@ -28,6 +28,7 @@ jobs:
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-card-editor.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
+          node --check custom_components/gwm_ru/frontend/gwm-vehicle-remote-horizontal-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-trips-card.js
           node --check custom_components/gwm_ru/frontend/gwm-vehicle-compat.js
       - name: Regression checks for card data dependencies
@@ -40,3 +41,10 @@ jobs:
           grep -q "_location" custom_components/gwm_ru/frontend/gwm-vehicle-trips-card.js
           grep -q 'class="control-zone"' custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
           grep -q 'class="sensor-zone"' custom_components/gwm_ru/frontend/gwm-vehicle-remote-card.js
+
+      - name: Check horizontal remote registration
+        run: |
+          grep -q 'gwm-vehicle-remote-horizontal-card' custom_components/gwm_ru/frontend/gwm-vehicle-bundle.js
+          grep -q 'grid-template-areas' custom_components/gwm_ru/frontend/gwm-vehicle-remote-horizontal-card.js
+          grep -q 'grid-area:controls' custom_components/gwm_ru/frontend/gwm-vehicle-remote-horizontal-card.js
+          grep -q 'grid-area:sensors' custom_components/gwm_ru/frontend/gwm-vehicle-remote-horizontal-card.js

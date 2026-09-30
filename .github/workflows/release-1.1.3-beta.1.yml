@@ -1,0 +1,31 @@
+name: Release v1.1.3-beta.1
+
+on:
+  push:
+    branches:
+      - feature/horizontal-animated-remote
+    paths:
+      - .github/workflows/release-1.1.3-beta.1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1.3-beta.1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release already exists"
+            exit 0
+          fi
+          gh release create v1.1.3-beta.1 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "v1.1.3-beta.1" \
+            --prerelease \
+            --notes $'## Горизонтальный анимированный пульт\n\n- Добавлена четвёртая встроенная карточка: GWM RU — анимированный пульт · горизонтальный\n- Автомобиль и анимация расположены слева\n- Управляющие кнопки вынесены в отдельную зону справа\n- Пассивные сенсоры отделены от кнопок и уменьшены\n- На узких секциях карточка автоматически возвращается к вертикальной компоновке\n- Используются те же данные, команды и визуальный редактор, что у обычного анимированного пульта\n\nТестовый prerelease перед стабильным v1.1.3.'
