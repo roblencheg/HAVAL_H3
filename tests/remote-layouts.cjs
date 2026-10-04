@@ -107,7 +107,7 @@ const assert = require('node:assert/strict');
     assert.equal(await page.evaluate(()=>window._calls.length),0);
     await trigger.click();await page.locator('gwm-remote-confirmation button[data-choice="true"]').click();
     await page.waitForFunction(()=>window._calls.length===1);
-    assert.deepEqual(await page.evaluate(()=>window._calls[0]),['gwm_ru','engine_start',{operation_time:15}]);
+    assert.deepEqual(await page.evaluate(()=>window._calls[0]),['gwm_ru','engine_start',{operation_time:15,entry_id:'test-entry'}]);
     // Unknown roof state has three explicit choices; cancellation never closes it.
     const roof=page.locator(`${tag} button[data-action="sunroof"]`);
     await roof.click();await page.locator('gwm-remote-confirmation .cancel').click();
@@ -119,6 +119,13 @@ const assert = require('node:assert/strict');
     await page.evaluate(async()=>{const card=document.querySelector('[data-test]');card._config.confirm_controls=false;await card._handleAction('engine');});
     assert.equal(await page.evaluate(()=>window._calls.length),3);
     assert.equal(await page.locator('gwm-remote-confirmation').count(),0);
+    await page.evaluate(async()=>{
+      const card=document.querySelector('[data-test]');card._device={id:'selected-car'};
+      await card._handleAction('engine');
+    });
+    assert.deepEqual(await page.evaluate(()=>window._calls[3][2]),
+      {operation_time:15,entry_id:'test-entry',device_id:'selected-car'}, 'Selected vehicle target lost');
+
   }
   // Missing telemetry must keep commands disabled; custom titles are escaped.
   await page.evaluate(() => {

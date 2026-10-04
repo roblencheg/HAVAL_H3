@@ -95,7 +95,7 @@ class GwmRuRemoteSwitch(GwmRuEntity, SwitchEntity):
         await self.coordinator.hass.services.async_call(
             DOMAIN,
             self.entity_description.service_on,
-            {"vin": self.vin},
+            {"entry_id": self.coordinator.entry_id, "vin": self.vin},
             blocking=True,
         )
 
@@ -103,6 +103,6 @@ class GwmRuRemoteSwitch(GwmRuEntity, SwitchEntity):
         await self.coordinator.hass.services.async_call(
             DOMAIN,
             self.entity_description.service_off,
-            {"vin": self.vin},
+            {"entry_id": self.coordinator.entry_id, "vin": self.vin},
             blocking=True,
         )

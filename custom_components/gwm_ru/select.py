@@ -93,6 +93,6 @@ class GwmRuSeatHeaterSelect(GwmRuEntity, SelectEntity):
         await self.coordinator.hass.services.async_call(
             DOMAIN,
             self.entity_description.service,
-            {"vin": self.vin, "level": level},
+            {"entry_id": self.coordinator.entry_id, "vin": self.vin, "level": level},
             blocking=True,
         )

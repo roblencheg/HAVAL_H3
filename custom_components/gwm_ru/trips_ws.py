@@ -70,6 +70,7 @@ async def get_trips(hass, connection, msg) -> None:
                     not sensor
                     or sensor.platform != DOMAIN
                     or sensor.config_entry_id != entry.config_entry_id
+                    or sensor.unique_id != f"{prefix}_mileage_total"
                     or not odometer.startswith("sensor.")
                     or not connection.user.permissions.check_entity(odometer, POLICY_READ)
                 ):

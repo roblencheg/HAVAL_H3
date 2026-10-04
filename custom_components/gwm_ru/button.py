@@ -78,6 +78,6 @@ class GwmRuCommandButton(GwmRuEntity, ButtonEntity):
         await self.coordinator.hass.services.async_call(
             DOMAIN,
             self._command["key"],
-            {"vin": self.vin},
+            {"entry_id": self.coordinator.entry_id, "vin": self.vin},
             blocking=True,
         )

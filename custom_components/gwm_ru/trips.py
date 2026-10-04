@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import closing
 from datetime import date, datetime, time, timedelta
 import math
 from pathlib import Path
@@ -317,10 +318,9 @@ class TripHistory:
         if lat is None or lon is None or not -90 <= lat <= 90 or not -180 <= lon <= 180 or (lat == 0 and lon == 0):
             lat = lon = None
         if odo is not None and odo < 0: odo = None
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             db.execute("INSERT OR REPLACE INTO points VALUES (?, ?, ?, ?)", (stamp, lat, lon, odo))
             db.execute("DELETE FROM points WHERE ts < ?", (stamp-self.retention*86400,))
-        db.close()
 
     async def append(self, stamp, location):
         async with self.lock:
@@ -328,13 +328,12 @@ class TripHistory:
 
     def _query(self, start, end, zone, archive=None):
         low, high = period(start, end, zone)
-        with self._connect() as db:
+        with closing(self._connect()) as db, db:
             rows = db.execute("SELECT ts,lat,lon,odo FROM points WHERE ts >= ? AND ts < ? ORDER BY ts", (low - PARKING_BASELINE_SECONDS, high)).fetchall()
             odometer_baseline = db.execute("SELECT ts,NULL,NULL,odo FROM points WHERE ts < ? AND odo IS NOT NULL ORDER BY ts DESC LIMIT 1", (low,)).fetchone()
             if odometer_baseline and all(row[0] != odometer_baseline[0] for row in rows):
                 rows.append(odometer_baseline)
                 rows.sort(key=lambda row: row[0])
-        db.close()
         result = with_archive(rows, archive or ([], []), start, end, zone)
         result["retention_days"] = self.retention
         return result
