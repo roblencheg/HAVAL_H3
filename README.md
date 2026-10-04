@@ -8,6 +8,10 @@
 
 [Релизы и история изменений](https://github.com/roblencheg/HAVAL_H3/releases) · [Сообщить о проблеме](https://github.com/roblencheg/HAVAL_H3/issues)
 
+**Стабильная версия [v1.1.6](https://github.com/roblencheg/HAVAL_H3/releases/tag/v1.1.6):** исправлены выбор аккаунта и автомобиля для команд, работа после перезагрузки интеграции, обработка ошибок облака и параллельных команд. Возможности автомобилей кэшируются на час; backend покрыт регрессионными тестами. [Все изменения](docs/release-1.1.6.md).
+
+Если подключено несколько аккаунтов, в ручных вызовах действий `gwm_ru` указывайте `entry_id`, `vin` или `device_id`. Встроенные карточки передают выбранное устройство автоматически. Неизвестная или неоднозначная цель возвращает ошибку.
+
 ## Установка и подключение
 
 [![Установить через HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=roblencheg&repository=HAVAL_H3&category=integration)

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "custom_components/gwm_ru/**"
+      - "tests/**"
       - ".github/workflows/native-card-tests.yml"
   push:
     branches:
@@ -12,6 +13,7 @@ on:
       - feature/native-dashboard-cards
     paths:
       - "custom_components/gwm_ru/**"
+      - "tests/**"
       - ".github/workflows/native-card-tests.yml"
 
 jobs:
@@ -22,6 +24,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Backend regression checks
+        run: |
+          python -m pip install aiohttp voluptuous
+          python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Compile Python
         run: python -m compileall -q custom_components/gwm_ru
       - name: Check bundled card JavaScript

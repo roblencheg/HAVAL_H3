@@ -279,6 +279,7 @@
     setConfig(config) {
       if ((config.device_id || "") !== (this._config.device_id || "") || (config.entity || "") !== (this._config.entity || "")) {
         this._entryId = undefined;
+        this._device = null;
         this._entities = {};
       }
       this._config = {
@@ -304,6 +305,15 @@
 
     getCardSize() {
       return 9;
+    }
+
+    _callVehicleService(service, data = {}) {
+      const deviceId = this._device?.id || this._config.device_id;
+      return this._hass.callService(INTEGRATION, service, {
+        ...data,
+        ...(this._entryId ? {entry_id: this._entryId} : {}),
+        ...(deviceId ? {device_id: deviceId} : {}),
+      });
     }
 
     _awaitResponse(promise, milliseconds = 15000) {
@@ -1106,12 +1116,12 @@
         if (["seatDriver", "seatPassenger"].some(key => this._isUnavailable(key))) return;
         const on = ["seatDriver", "seatPassenger"].some(key => Number(this._state(key)?.state) > 0);
         if (!await this._confirm(on ? "Выключить оба подогрева?" : "Включить оба подогрева на уровень 3 на 10 минут?")) return;
-        return this._runBusy(action, () => this._hass.callService(INTEGRATION, "set_seat_heating", {entry_id:this._entryId,driver:on ? 0 : 3,passenger:on ? 0 : 3,operation_time:10}));
+        return this._runBusy(action, () => this._callVehicleService("set_seat_heating", {entry_id:this._entryId,driver:on ? 0 : 3,passenger:on ? 0 : 3,operation_time:10}));
       }
       if (action === "lock") {
         if (!await this._confirm(unlocked ? "Закрыть автомобиль?" : "Разблокировать автомобиль?")) return;
         return this._runBusy(action, () =>
-          this._hass.callService(INTEGRATION, unlocked ? "lock_vehicle" : "unlock_vehicle", { entry_id: this._entryId }),
+          this._callVehicleService(unlocked ? "lock_vehicle" : "unlock_vehicle", { entry_id: this._entryId }),
         );
       }
 
@@ -1125,7 +1135,7 @@
         }
         if (!await this._confirm(engine ? "Остановить двигатель?" : "Запустить двигатель на 15 минут?")) return;
         return this._runBusy(action, () =>
-          this._hass.callService(INTEGRATION, engine ? "engine_stop" : "engine_start", engine ? {} : { operation_time: 15 }),
+          this._callVehicleService(engine ? "engine_stop" : "engine_start", engine ? {} : { operation_time: 15 }),
         );
       }
 
@@ -1141,14 +1151,14 @@
       if (action === "trunk") {
         if (!await this._confirm(trunk ? "Закрыть багажник?" : "Открыть багажник?")) return;
         return this._runBusy(action, () =>
-          this._hass.callService(INTEGRATION, trunk ? "close_trunk" : "open_trunk", {}),
+          this._callVehicleService(trunk ? "close_trunk" : "open_trunk", {}),
         );
       }
 
       if (action === "windows") {
         if (!await this._confirm(windows ? "Закрыть все окна?" : "Открыть все окна? Команда открытия экспериментальная.")) return;
         return this._runBusy(action, () =>
-          this._hass.callService(INTEGRATION, windows ? "close_windows" : "open_windows", {}),
+          this._callVehicleService(windows ? "close_windows" : "open_windows", {}),
         );
       }
 
@@ -1205,7 +1215,7 @@
       if (!await this._confirm(`${next ? "Включить" : "Выключить"} ${label}?`)) return;
       return this._runBusy(
         action,
-        () => this._hass.callService(INTEGRATION, next ? onService : offService, {}),
+        () => this._callVehicleService(next ? onService : offService, {}),
         () => { this._assumed[key] = next; },
       );
     }
@@ -1225,7 +1235,7 @@
       }
       return this._runBusy(
         action,
-        () => this._hass.callService(INTEGRATION, next ? openService : closeService, {}),
+        () => this._callVehicleService(next ? openService : closeService, {}),
         () => { this._assumed[key] = next; },
       );
     }

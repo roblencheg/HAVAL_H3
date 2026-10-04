@@ -79,6 +79,7 @@
     setConfig(config) {
       if ((config.device_id || "") !== (this._config.device_id || "") || (config.entity || "") !== (this._config.entity || "")) {
         this._entryId = undefined;
+        this._device = null;
         this._entities = {};
       }
       this._config = {
@@ -108,6 +109,15 @@
 
     getCardSize() {
       return 10;
+    }
+
+    _callVehicleService(service, data = {}) {
+      const deviceId = this._device?.id || this._config.device_id;
+      return this._hass.callService(INTEGRATION, service, {
+        ...data,
+        ...(this._entryId ? {entry_id: this._entryId} : {}),
+        ...(deviceId ? {device_id: deviceId} : {}),
+      });
     }
 
     _awaitResponse(promise, milliseconds = 15000) {
@@ -499,7 +509,7 @@
       if (!this._entryId || !this._hass) return Promise.resolve();
       const entryId = this._entryId;
       this._settingsSave = (this._settingsSave || Promise.resolve()).then(() =>
-        this._awaitResponse(this._hass.callService(INTEGRATION, "save_card_settings", {entry_id:entryId, settings}), 30000)
+        this._awaitResponse(this._callVehicleService("save_card_settings", {entry_id:entryId, settings}), 30000)
       ).catch(error => { console.error("GWM settings save failed", error); alert("Не удалось сохранить настройки карточки. Проверьте подключение к Home Assistant."); });
       return this._settingsSave;
     }
@@ -581,7 +591,7 @@
       const entryId = this._entryId;
       return this._runBusy("profiles", async () => {
         await this._settingsSave;
-        await this._hass.callService(INTEGRATION,"manage_preparation_profile",{entry_id:entryId,action,profile_id:profileId || "",...(["create","update","copy"].includes(action) ? {name} : {}),...(["create","update"].includes(action) ? {settings} : {})});
+        await this._callVehicleService("manage_preparation_profile",{entry_id:entryId,action,profile_id:profileId || "",...(["create","update","copy"].includes(action) ? {name} : {}),...(["create","update"].includes(action) ? {settings} : {})});
         this._profileNameDraft = null;
       });
     }
@@ -1450,7 +1460,7 @@
         if (!this._entryId || this._busy.size || this._remoteCommandInProgress() || this._isUnavailable("engine") || this._isOn("engine")) return;
         const data = this._preparationData();
         if (!this._confirm(`Запустить подготовку? ${this._profileSummary()}. Команды выполняются по очереди.`)) return;
-        this._runBusy("preparation", () => this._hass.callService(INTEGRATION,"start_with_comfort",data));
+        this._runBusy("preparation", () => this._callVehicleService("start_with_comfort",data));
       });
       this.shadowRoot.getElementById("comfort-start")?.addEventListener("change", event => {
         this._comfortStart = event.target.checked;
@@ -1568,9 +1578,7 @@
           : `Запустить двигатель на ${runtime} мин${this._comfortStart ? " с выбранным климатом и подогревами (по очереди)" : ""}? Перед отправкой интеграция ещё раз проверит состояние автомобиля.`;
         if (!this._confirm(message)) return;
         return this._runBusy(action, () =>
-          this._hass.callService(
-            INTEGRATION,
-            engineOn ? "engine_stop" : this._comfortStart ? "start_with_comfort" : "engine_start",
+          this._callVehicleService(engineOn ? "engine_stop" : this._comfortStart ? "start_with_comfort" : "engine_start",
             engineOn ? {entry_id:this._entryId} : this._comfortStart ? this._preparationData() : { entry_id:this._entryId, operation_time: runtime }
           )
         );
@@ -1579,7 +1587,7 @@
       if (action === "lock") {
         if (!this._confirm(unlocked ? "Закрыть автомобиль?" : "Разблокировать автомобиль?")) return;
         return this._runBusy(action, () =>
-          this._hass.callService(INTEGRATION, unlocked ? "lock_vehicle" : "unlock_vehicle", {
+          this._callVehicleService(unlocked ? "lock_vehicle" : "unlock_vehicle", {
             entry_id: this._entryId,
           })
         );
@@ -1617,9 +1625,7 @@
           return;
         }
         return this._runBusy(action, () =>
-          this._hass.callService(
-            INTEGRATION,
-            trunkOpen ? "close_trunk" : "open_trunk",
+          this._callVehicleService(trunkOpen ? "close_trunk" : "open_trunk",
             {}
           )
         );
@@ -1630,7 +1636,7 @@
         const data = {entry_id: this._entryId, operation_time: this._seatSettings.operation_time};
         if (this._featureEnabled("seat_heat_driver")) data.driver = this._seatEnabled.driver ? this._seatSettings.driver : 0;
         if (this._featureEnabled("seat_heat_passenger")) data.passenger = this._seatEnabled.passenger ? this._seatSettings.passenger : 0;
-        return this._runBusy(action, () => this._hass.callService(INTEGRATION, "set_seat_heating", data));
+        return this._runBusy(action, () => this._callVehicleService("set_seat_heating", data));
       }
 
       if (action === "windows") {
@@ -1641,9 +1647,7 @@
           : "Приоткрыть окна для проветривания? Команда ещё не проверена на автомобиле.";
         if (!this._confirm(message)) return;
         return this._runBusy(action, () =>
-          this._hass.callService(
-            INTEGRATION,
-            shouldClose ? "close_windows" : "open_windows",
+          this._callVehicleService(shouldClose ? "close_windows" : "open_windows",
             {entry_id: this._entryId}
           )
         );
@@ -1728,7 +1732,7 @@
       }
       return this._runBusy(
         action,
-        () => this._hass.callService(INTEGRATION, service, {}),
+        () => this._callVehicleService(service, {}),
         () => {
           this._assumed[assumedKey] = nextOpen;
         }
@@ -1745,9 +1749,7 @@
       return this._runBusy(
         action,
         () =>
-          this._hass.callService(
-            INTEGRATION,
-            nextOn ? onService : offService,
+          this._callVehicleService(nextOn ? onService : offService,
             {}
           ),
         () => {

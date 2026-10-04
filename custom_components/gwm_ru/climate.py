@@ -109,7 +109,8 @@ class GwmRuClimate(GwmRuEntity, ClimateEntity):
         if temperature is None:
             return
         temperature = max(self.min_temp, min(self.max_temp, float(temperature)))
-        self._requested_target_temperature = temperature
         # On GWM RU changing target temperature should be an actual remote command.
         # If climate is currently off, the same command also starts it.
         await self._send("1", temperature)
+        self._requested_target_temperature = temperature
+        self.async_write_ha_state()

@@ -9,10 +9,11 @@ import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.storage import Store
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import GwmRuApiClient
+from .api import GwmRuApiClient, GwmRuApiError
 from .card_settings import validate_settings
 from .const import DOMAIN, ENDPOINT_REMOTE_HISTORY
 from .preparation_profiles import change_profiles, initial_profiles, profile_settings, validate_profiles
@@ -48,9 +49,17 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._profiles_lock = asyncio.Lock()
         self._comfort_task: asyncio.Task | None = None
         self.trip_histories: dict[str, Any] = {}
+        self._primary_vin: str | None = None
+        self._listener_unsubscribers: list[Any] = []
+        self._command_tasks: set[asyncio.Task] = set()
 
     async def _async_update_data(self) -> dict[str, Any]:
-        data = await self.client.async_update()
+        try:
+            data = await self.client.async_update()
+        except GwmRuApiError as err:
+            raise UpdateFailed(str(err)) from err
+        if self._primary_vin is None:
+            self._primary_vin = data.get("vin")
         now = time.time()
         for vehicle in data.get("vehicles", []):
             vin = vehicle.get("vin")
@@ -140,6 +149,8 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             history_data = payload.get("data") or {}
             history_list = history_data.get("list") if isinstance(history_data, dict) else None
             vehicle["remote_history"] = history_list if isinstance(history_list, list) else []
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as err:
             vehicle["remote_history"] = []
             vehicle.setdefault("diagnostics", {})["remote_history_error"] = str(err)
@@ -174,11 +185,12 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for vehicle in self.vehicles:
                 if requested_vin in {vehicle.get("vin"), vehicle.get("display_vin")}:
                     return vehicle.get("vin")
+            return None
         return (self.data or {}).get("vin")
 
     def entity_prefix(self, vin: str) -> str:
         """Keep legacy unique IDs for the primary vehicle, use VIN for additional vehicles."""
-        return self.entry_id if vin == (self.data or {}).get("vin") else vin
+        return self.entry_id if vin == self._primary_vin else vin
 
     def set_command_status(self, vin: str, status: str) -> None:
         self._command_status[vin] = status
@@ -230,7 +242,31 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         expected_remote_type: str,
         security_pin: str | None = None,
     ) -> dict[str, Any]:
+        task = asyncio.current_task()
+        self._command_tasks.add(task)
+        try:
+            return await self._async_execute_t5(vin, instructions, expected_remote_type, security_pin)
+        finally:
+            self._command_tasks.discard(task)
+
+    async def _async_execute_t5(
+        self,
+        vin: str,
+        instructions: dict,
+        expected_remote_type: str,
+        security_pin: str | None = None,
+    ) -> dict[str, Any]:
         pin = security_pin or self.security_pin
+        if not self.enable_remote_controls or not pin:
+            raise HomeAssistantError("Remote controls and security PIN are required")
+        if self.vehicle(vin) is None:
+            raise HomeAssistantError("Vehicle VIN not available")
+        if self.command_in_progress and self._comfort_task is not asyncio.current_task():
+            raise HomeAssistantError("Другая команда уже выполняется")
+        try:
+            self.check_command_cooldown()
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
         self.set_command_status(vin, "Выполняется")
         self._set_command_diagnostics(
             vin,
@@ -247,6 +283,9 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 expected_remote_type,
                 security_pin=pin,
             )
+        except asyncio.CancelledError:
+            self.set_command_status(vin, "Отменено")
+            raise
         except Exception as err:
             self.set_command_status(vin, "Ошибка")
             self._set_command_diagnostics(
@@ -352,6 +391,7 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         driver: int | None,
         passenger: int | None,
         operation_time: int = 5,
+        security_pin: str | None = None,
     ) -> dict[str, Any] | None:
         if driver is None and passenger is None:
             return None
@@ -370,13 +410,13 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if passenger is not None:
             level = min(3, max(0, int(passenger)))
             seat["leftFront" if driver_is_right else "rightFront"] = str(level)
-        if driver == 0 and passenger == 0:
+        if all(value == 0 for value in (driver, passenger) if value is not None):
             seat["operationTime"] = "0"
         return await self.async_execute_t5(
             vin,
             {"0x0A": {"seat": seat}},
             "0x0A",
-            self.security_pin,
+            security_pin or self.security_pin,
         )
 
     async def _async_comfort_pause(self) -> None:
@@ -442,9 +482,20 @@ class GwmRuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
     def check_command_cooldown(self) -> None:
-        now = time.time()
+        now = time.monotonic()
         elapsed = now - self._last_command_time
         if elapsed < self.command_cooldown:
             remaining = max(1, int(self.command_cooldown - elapsed + 0.999))
             raise ValueError(f"Command cooldown active. Wait {remaining} seconds.")
         self._last_command_time = now
+
+    async def async_shutdown(self) -> None:
+        """Release discovery listeners and cancel an unfinished preparation."""
+        for unsubscribe in self._listener_unsubscribers:
+            unsubscribe()
+        self._listener_unsubscribers.clear()
+        tasks = self._command_tasks | ({self._comfort_task} if self._comfort_task else set())
+        tasks.discard(asyncio.current_task())
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)

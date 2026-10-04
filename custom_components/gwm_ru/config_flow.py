@@ -38,7 +38,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_PHONE): str,
         vol.Required(CONF_PASSWORD): str,
-        vol.Optional(CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL): int,
+        vol.Optional(CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL): vol.All(int, vol.Range(min=30, max=86400)),
         vol.Optional(CONF_SECURITY_PIN): selector.TextSelector(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD),
         ),
@@ -117,6 +117,7 @@ class GwmRuConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data = dict(entry.data)
                 data[CONF_PASSWORD] = user_input[CONF_PASSWORD]
                 info = await validate_input(self.hass, data)
+                data[CONF_DEVICE_ID] = info["device_id"]
                 self.hass.config_entries.async_update_entry(entry, data=data)
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
@@ -186,9 +187,9 @@ class GwmRuOptionsFlowHandler(config_entries.OptionsFlowWithReload):
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_POLL_INTERVAL, default=poll_interval): int,
+                    vol.Optional(CONF_POLL_INTERVAL, default=poll_interval): vol.All(int, vol.Range(min=30, max=86400)),
                     vol.Optional(CONF_ENABLE_REMOTE_CONTROLS, default=enable_remote): bool,
-                    vol.Optional(CONF_COMMAND_COOLDOWN, default=command_cooldown): int,
+                    vol.Optional(CONF_COMMAND_COOLDOWN, default=command_cooldown): vol.All(int, vol.Range(min=0, max=300)),
                     vol.Optional(CONF_SECURITY_PIN): selector.TextSelector(
                         selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD),
                     ),

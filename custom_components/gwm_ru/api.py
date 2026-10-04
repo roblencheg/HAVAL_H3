@@ -39,6 +39,9 @@ class GwmRuApiClient:
         self._country_code = country_code
         self._access_token: str | None = None
         self._login_lock = asyncio.Lock()
+        self._primary_vin: str | None = None
+        self._capability_cache: dict[tuple[str, int], tuple[float, Any]] = {}
+        self._local_ip = local_ip()
 
     async def async_login(self) -> None:
         async with self._login_lock:
@@ -56,15 +59,24 @@ class GwmRuApiClient:
         cars = await self._get_vehicles()
         if not cars:
             raise GwmRuApiError("No vehicles returned by GWM RU account")
+        if self._primary_vin is None:
+            self._primary_vin = str(cars[0].get("vin") or "") or None
         vehicles: list[dict[str, Any]] = []
         for car in cars:
             try:
                 vehicles.append(await self._build_vehicle_snapshot(car))
+            except ConfigEntryAuthFailed:
+                raise
             except Exception as err:
                 _LOGGER.warning("Failed to refresh one GWM vehicle: %s", err)
         if not vehicles:
             raise GwmRuApiError("No GWM vehicles could be refreshed")
-        primary = vehicles[0]
+        primary = next((v for v in vehicles if v["vin"] == self._primary_vin), None)
+        if primary is None:
+            # Keep legacy entity IDs assigned to their original vehicle even
+            # when only another vehicle could be refreshed this time.
+            primary = {"vin": self._primary_vin, "vehicle": {},
+                       "vehicle_name": "GWM vehicle", "state": {}, "location": {}}
         return {"vin": primary["vin"], "vehicle": primary["vehicle"], "vehicle_name": primary["vehicle_name"], "state": primary["state"], "location": primary["location"], "vehicles": vehicles}
 
     async def _build_vehicle_snapshot(self, car: dict[str, Any]) -> dict[str, Any]:
@@ -77,7 +89,12 @@ class GwmRuApiClient:
         status = await self._get_last_status(str(vin))
         tbox: dict[str, Any] = {}
         if imsi and vehicle_id:
-            tbox = await self._find_status(str(imsi), str(vehicle_id), str(vin))
+            try:
+                tbox = await self._find_status(str(imsi), str(vehicle_id), str(vin))
+            except ConfigEntryAuthFailed:
+                raise
+            except GwmRuApiError:
+                _LOGGER.debug("TBOX status unavailable; retaining vehicle telemetry")
 
         state = build_state(status, tbox)
         location = {"latitude": status.get("latitude"), "longitude": status.get("longitude"), "gps_accuracy": 50}
@@ -105,6 +122,8 @@ class GwmRuApiClient:
             user_role = int(car.get("ownership") or 1)
             capability_raw = await self._get_vehicle_capabilities(str(vin), user_role)
             capabilities = build_vehicle_capabilities(capability_raw)
+        except ConfigEntryAuthFailed:
+            raise
         except Exception as err:
             capability_error = str(err)
             # Compatibility fallback only. Entity platforms treat a non-cloud
@@ -180,10 +199,10 @@ class GwmRuApiClient:
     async def async_poll_t5_result(self, vin: str, seq_no: str, expected_remote_type: str, timeout: int = 300, interval: int = 1) -> dict[str, Any]:
         success_codes = {"0", "6"}
         pending_codes = {"1000", "2000"}
-        deadline = time.time() + timeout
+        deadline = time.monotonic() + timeout
         last_error_code: str | None = None
         last_error_msg: str | None = None
-        while time.time() < deadline:
+        while time.monotonic() < deadline:
             await asyncio.sleep(interval)
             try:
                 payload = await self._request("GET", ENDPOINT_T5_CTRL_RESULT, params={"seqNo": seq_no, "vin": vin}, vin_header=vin)
@@ -192,7 +211,8 @@ class GwmRuApiClient:
             data = payload.get("data")
             if not isinstance(data, list):
                 continue
-            matched = [bean for bean in data if str(bean.get("remoteType") or "") == expected_remote_type]
+            matched = [bean for bean in data if isinstance(bean, dict)
+                       and str(bean.get("remoteType") or "") == expected_remote_type]
             if not matched:
                 continue
             for bean in matched:
@@ -203,9 +223,13 @@ class GwmRuApiClient:
             for bean in matched:
                 last_error_code = str(bean.get("resultCode", ""))
                 last_error_msg = str(bean.get("resultMsg") or "")
+            if last_error_code:
+                raise HomeAssistantError(
+                    f"Command failed: {last_error_msg}" if last_error_msg else f"Error code {last_error_code}"
+                )
         if last_error_code:
             raise HomeAssistantError(f"Command failed: {last_error_msg}" if last_error_msg else f"Error code {last_error_code}")
-        raise HomeAssistantError("Command timed out after 300 seconds")
+        raise HomeAssistantError(f"Command timed out after {timeout} seconds")
 
     async def _ensure_login(self) -> None:
         if not self._access_token:
@@ -227,13 +251,20 @@ class GwmRuApiClient:
         return data if isinstance(data, dict) else {}
 
     async def _get_vehicle_capabilities(self, vin: str, user_role: int) -> Any:
+        key = (vin, user_role)
+        cached = self._capability_cache.get(key)
+        if cached and time.monotonic() - cached[0] < 3600:
+            return cached[1]
         payload = await self._request(
             "GET",
             ENDPOINT_VEHICLE_CAPABILITIES,
             params={"vin": vin, "userRole": str(user_role)},
             vin_header=vin,
         )
-        return payload.get("data")
+        data = payload.get("data")
+        if data is not None:
+            self._capability_cache[key] = (time.monotonic(), data)
+        return data
 
     async def _request(self, method: str, path: str, *, params: dict[str, str] | None = None, body: dict[str, Any] | None = None, with_token: bool = True, vin_header: str | None = None, retry_auth: bool = True) -> dict[str, Any]:
         params = params or {}
@@ -244,12 +275,15 @@ class GwmRuApiClient:
         try:
             async with self._session.request(method, url, headers=headers, data=body_json.encode("utf-8") if body is not None else None, timeout=30) as resp:
                 text = await resp.text()
-        except ClientError as err:
+                resp.raise_for_status()
+        except (ClientError, TimeoutError) as err:
             raise GwmRuApiError(f"Cannot connect to GWM RU: {err}") from err
         try:
             payload = json.loads(text)
         except json.JSONDecodeError as err:
-            raise GwmRuApiError(f"Invalid GWM RU response: {text[:200]}") from err
+            raise GwmRuApiError("Invalid GWM RU JSON response") from err
+        if not isinstance(payload, dict):
+            raise GwmRuApiError("Invalid GWM RU response structure")
         code = str(payload.get("code"))
         if code == "000000":
             return payload
@@ -260,11 +294,13 @@ class GwmRuApiClient:
         description = str(payload.get("description") or payload.get("message") or code)
         if not with_token:
             raise ConfigEntryAuthFailed(description)
+        if code in {"401", "401000", "308001", "308002", "308003"}:
+            raise ConfigEntryAuthFailed(description)
         raise GwmRuApiError(description)
 
     def _headers(self, method: str, path: str, url: str, body_json: str, with_token: bool, vin: str | None) -> dict[str, str]:
         timestamp, nonce, sign = sign_request(method, path, url, body_json)
-        headers = {"Accept": "application/json", "Content-Type": "application/json; charset=UTF-8", f"{AUTH_PREFIX}-auth-appkey": APP_KEY, f"{AUTH_PREFIX}-auth-timestamp": timestamp, f"{AUTH_PREFIX}-auth-sign": sign, f"{AUTH_PREFIX}-auth-nonce": nonce, "ip": local_ip(), "rs": "2", "appId": APP_ID, "brand": BRAND, "terminal": TERMINAL, "enterpriseId": ENTERPRISE_ID, "systemType": SYSTEM_TYPE, "cVer": APP_VERSION, "timeZone": "GMT+03:00", "channel": "APP", "language": LANGUAGE, "regionCode": REGION_CODE, "country": COUNTRY, "communityBrand": "1", "deviceId": self._device_id, "iccid": self._device_id, "User-Agent": "GWM"}
+        headers = {"Accept": "application/json", "Content-Type": "application/json; charset=UTF-8", f"{AUTH_PREFIX}-auth-appkey": APP_KEY, f"{AUTH_PREFIX}-auth-timestamp": timestamp, f"{AUTH_PREFIX}-auth-sign": sign, f"{AUTH_PREFIX}-auth-nonce": nonce, "ip": self._local_ip, "rs": "2", "appId": APP_ID, "brand": BRAND, "terminal": TERMINAL, "enterpriseId": ENTERPRISE_ID, "systemType": SYSTEM_TYPE, "cVer": APP_VERSION, "timeZone": "GMT+03:00", "channel": "APP", "language": LANGUAGE, "regionCode": REGION_CODE, "country": COUNTRY, "communityBrand": "1", "deviceId": self._device_id, "iccid": self._device_id, "User-Agent": "GWM"}
         if with_token and self._access_token:
             headers["accessToken"] = self._access_token
         if vin:
@@ -283,7 +319,7 @@ def sign_request(method: str, path: str, full_url: str, body_json: str = "") -> 
     else:
         params = ""
     raw = method.upper() + path + auth_string + params + APP_SEC
-    raw = re.sub(r"\s*|\t|\r|\n", "", raw)
+    raw = re.sub(r"\s+", "", raw)
     encoded = quote_plus(raw, safe="")
     return timestamp, nonce, hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
@@ -299,11 +335,9 @@ def format_get_parameter(full_url: str) -> str:
 
 def local_ip() -> str:
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.connect(("8.8.8.8", 80))
-        ip = sock.getsockname()[0]
-        sock.close()
-        return ip
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
     except OSError:
         return "127.0.0.1"
 

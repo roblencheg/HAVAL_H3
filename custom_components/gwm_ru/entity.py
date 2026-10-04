@@ -63,4 +63,6 @@ def setup_vehicle_entities(
             async_add_entities(entities)
 
     add_new_vehicle_entities()
-    coordinator.async_add_listener(add_new_vehicle_entities)
+    coordinator._listener_unsubscribers.append(
+        coordinator.async_add_listener(add_new_vehicle_entities)
+    )
