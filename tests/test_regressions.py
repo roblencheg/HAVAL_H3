@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import asyncio
 import importlib
-from pathlib import Path
+import json
 import sys
 import tempfile
-from types import ModuleType, SimpleNamespace
 import unittest
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
+
+import voluptuous as vol
 
 
 def module(name, **attributes):
@@ -269,9 +272,8 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_terminal_command_failure_returns_immediately(self):
         item = self.client()
         item._request = AsyncMock(return_value={"data": [None, {"remoteType": "0x03", "resultCode": 42, "resultMsg": "rejected"}]})
-        with patch.object(api.asyncio, "sleep", new=AsyncMock()):
-            with self.assertRaisesRegex(HomeAssistantError, "rejected"):
-                await item.async_poll_t5_result("VIN-A", "test-seq", "0x03")
+        with patch.object(api.asyncio, "sleep", new=AsyncMock()), self.assertRaisesRegex(HomeAssistantError, "rejected"):
+            await item.async_poll_t5_result("VIN-A", "test-seq", "0x03")
         self.assertEqual(item._request.await_count, 1)
 
     async def test_pending_then_success_and_other_command_ignored(self):
@@ -301,6 +303,147 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             await self.client(session)._request("GET", "/test")
 
 
+class AuthRecoveryTests(unittest.IsolatedAsyncioTestCase):
+    class Response:
+        def __init__(self, payload, status=200, wait=None):
+            self.payload, self.status, self.wait = payload, status, wait
+
+        async def __aenter__(self):
+            async def text():
+                if self.wait:
+                    await self.wait()
+                return self.payload if isinstance(self.payload, str) else json.dumps(self.payload)
+            return SimpleNamespace(status=self.status, text=text,
+                                   raise_for_status=Mock())
+
+        async def __aexit__(self, *args):
+            return False
+
+    def client(self, payloads):
+        responses = iter(payloads)
+        session = SimpleNamespace(request=Mock(side_effect=lambda *a, **k: self.Response(next(responses))))
+        item = api.GwmRuApiClient(session, "79999999999", "mock-password", "mock-device", "RU", "+7")
+        item._access_token = "old"
+        return item
+
+    async def test_localized_expiry_recovers_unknown_code(self):
+        item = self.client([
+            {"code":"999999", "description":"Срок действия токена входа истек"},
+            {"code":"000000", "data":{"accessToken":"fresh"}},
+            {"code":"000000", "data":[{"vin":"VIN-A"}]},
+        ])
+        self.assertEqual((await item._get_vehicles())[0]["vin"], "VIN-A")
+        self.assertEqual(item._access_token, "fresh")
+        calls = item._session.request.call_args_list
+        self.assertEqual([c.kwargs["headers"].get("accessToken") for c in calls], ["old", None, "fresh"])
+
+    async def test_repeated_auth_failure_is_bounded_and_discards_bad_token(self):
+        item = self.client([
+            {"code":"401000"},
+            {"code":"000000", "data":{"accessToken":"fresh"}},
+            {"code":"401000"},
+        ])
+        with self.assertRaises(ConfigEntryAuthFailed):
+            await item._get_vehicles()
+        self.assertEqual(item._session.request.call_count, 3)
+        self.assertIsNone(item._access_token)
+
+    async def test_bad_credentials_do_not_loop(self):
+        item = self.client([{"code":"401000"}, {"code":"bad-password"}])
+        with self.assertRaises(ConfigEntryAuthFailed):
+            await item._get_vehicles()
+        self.assertEqual(item._session.request.call_count, 2)
+        self.assertIsNone(item._access_token)
+
+    async def test_business_error_mentioning_token_does_not_trigger_login(self):
+        item = self.client([{"code":"999999", "description":"Access token does not grant this vehicle permission"}])
+        with self.assertRaises(api.GwmRuApiError):
+            await item._get_vehicles()
+        self.assertEqual(item._session.request.call_count, 1)
+        self.assertEqual(item._access_token, "old")
+
+    async def test_unknown_308_code_is_not_assumed_to_be_auth(self):
+        item = self.client([{"code":"308999", "description":"Vehicle unavailable"}])
+        with self.assertRaises(api.GwmRuApiError):
+            await item._get_vehicles()
+        self.assertEqual(item._session.request.call_count, 1)
+
+    async def test_replay_preserves_post_body_query_and_vehicle(self):
+        item = self.client([
+            {"code":"401000"}, {"code":"000000", "data":{"accessToken":"fresh"}},
+            {"code":"000000", "data":{}},
+        ])
+        await item._request("POST", "/mock-command", params={"key":"test"},
+                            body={"vin":"VIN-A", "instructions":{"test":"mock"}}, vin_header="VIN-A")
+        first, _, replay = item._session.request.call_args_list
+        self.assertEqual(first.args, replay.args)
+        self.assertEqual(first.kwargs["data"], replay.kwargs["data"])
+        self.assertEqual(replay.kwargs["headers"]["vin"], "VIN-A")
+
+    async def test_http_401_without_json_recovers(self):
+        item = self.client([])
+        item._session.request.side_effect = [
+            self.Response("Unauthorized", status=401),
+            self.Response({"code":"000000", "data":{"accessToken":"fresh"}}),
+            self.Response({"code":"000000", "data":[]}),
+        ]
+        await item._get_vehicles()
+        self.assertEqual(item._access_token, "fresh")
+
+    async def test_concurrent_late_expiry_reuses_first_recovered_token(self):
+        item = self.client([])
+        started, release = asyncio.Event(), asyncio.Event()
+        logins = []
+        async def delay():
+            started.set()
+            await release.wait()
+        def request(method, url, **kwargs):
+            token = kwargs["headers"].get("accessToken")
+            if url.endswith(api.ENDPOINT_LOGIN):
+                token = f"fresh-{len(logins) + 1}"
+                logins.append(token)
+                return self.Response({"code":"000000", "data":{"accessToken":token}})
+            if token == "old":
+                return self.Response({"code":"999999", "description":"Срок действия токена входа истек"},
+                                     wait=delay if url.endswith("/slow") else None)
+            return self.Response({"code":"000000", "data":[]})
+        item._session.request.side_effect = request
+        slow = asyncio.create_task(item._request("GET", "/slow"))
+        try:
+            await started.wait()
+            await item._request("GET", "/fast")
+        finally:
+            release.set()
+            await slow
+        self.assertEqual(logins, ["fresh-1"])
+        self.assertEqual(item._access_token, "fresh-1")
+        self.assertEqual(item._session.request.call_args_list[-1].kwargs["headers"]["accessToken"], "fresh-1")
+
+    async def test_concurrent_initial_login_uses_single_session(self):
+        item = self.client([])
+        item._access_token = None
+        async def yield_once():
+            await asyncio.sleep(0)
+        item._session.request.side_effect = lambda *a, **k: self.Response(
+            {"code":"000000", "data":{"accessToken":"fresh"}}, wait=yield_once)
+        await asyncio.gather(item._ensure_login(), item._ensure_login())
+        self.assertEqual(item._session.request.call_count, 1)
+
+    async def test_missing_login_token_is_auth_failure(self):
+        item = self.client([{"code":"000000", "data":["invalid"]}])
+        item._access_token = None
+        with self.assertRaises(ConfigEntryAuthFailed):
+            await item.async_login()
+
+    async def test_real_validation_rejects_out_of_range_temperature(self):
+        target = coordinator()
+        hass = SimpleNamespace(data={"gwm_ru":{"first":target}}, services=ServiceRegistry())
+        services.register_services(hass)
+        with self.assertRaises(vol.Invalid):
+            await hass.services.call("start_with_comfort", entry_id="first", temperature=99)
+        target.client.async_send_t5_command.assert_not_awaited()
+
+
 class TripStorageTests(unittest.IsolatedAsyncioTestCase):
     async def test_sqlite_connection_closed_after_query_error(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -310,9 +453,8 @@ class TripStorageTests(unittest.IsolatedAsyncioTestCase):
             db.__enter__ = Mock(return_value=db)
             db.__exit__ = Mock(return_value=False)
             db.execute.side_effect = RuntimeError("read failed")
-            with patch.object(history, "_connect", return_value=db):
-                with self.assertRaises(RuntimeError):
-                    history._query("2026-10-01", "2026-10-01", "UTC")
+            with patch.object(history, "_connect", return_value=db), self.assertRaises(RuntimeError):
+                history._query("2026-10-01", "2026-10-01", "UTC")
             db.close.assert_called_once()
 
 
