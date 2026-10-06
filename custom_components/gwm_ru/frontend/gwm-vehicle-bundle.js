@@ -4,10 +4,10 @@
  * Loaded as one Lovelace module so Home Assistant awaits registration of all
  * custom elements before rendering dashboard cards.
  */
-import "./gwm-vehicle-card-editor.js?v=1.1.6";
-import "./gwm-vehicle-card.js?v=1.1.6";
-import "./gwm-vehicle-remote-card.js?v=1.1.6";
-import "./gwm-vehicle-remote-horizontal-card.js?v=1.1.6";
-import "./gwm-vehicle-trips-card.js?v=1.1.6";
-import "./gwm-vehicle-compat.js?v=1.1.6";
-import "./gwm-vehicle-remote-modern-card.js?v=1.1.6";
+import "./gwm-vehicle-card-editor.js?v=1.1.7";
+import "./gwm-vehicle-card.js?v=1.1.7";
+import "./gwm-vehicle-remote-card.js?v=1.1.7";
+import "./gwm-vehicle-remote-horizontal-card.js?v=1.1.7";
+import "./gwm-vehicle-trips-card.js?v=1.1.7";
+import "./gwm-vehicle-compat.js?v=1.1.7";
+import "./gwm-vehicle-remote-modern-card.js?v=1.1.7";

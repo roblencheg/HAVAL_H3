@@ -17,10 +17,52 @@ from aiohttp import ClientError, ClientSession
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 
 from .capabilities import build_vehicle_capabilities
-from .const import APP_ID, APP_KEY, APP_SEC, APP_VERSION, AUTH_PREFIX, BASE_URL, BRAND, COUNTRY, ENDPOINT_CHECK_SECURITY_PASSWORD, ENDPOINT_FIND_STATUS, ENDPOINT_LAST_STATUS, ENDPOINT_LOGIN, ENDPOINT_T5_CTRL_RESULT, ENDPOINT_T5_SEND_CMD, ENDPOINT_VEHICLE_CAPABILITIES, ENDPOINT_VEHICLES, ENTERPRISE_ID, LANGUAGE, REGION_CODE, SYSTEM_TYPE, TERMINAL
-from .helpers import build_state, calculate_fuel_percent, normalize_phone, redact_vehicle
+from .const import (
+    APP_ID,
+    APP_KEY,
+    APP_SEC,
+    APP_VERSION,
+    AUTH_PREFIX,
+    BASE_URL,
+    BRAND,
+    COUNTRY,
+    ENDPOINT_CHECK_SECURITY_PASSWORD,
+    ENDPOINT_FIND_STATUS,
+    ENDPOINT_LAST_STATUS,
+    ENDPOINT_LOGIN,
+    ENDPOINT_T5_CTRL_RESULT,
+    ENDPOINT_T5_SEND_CMD,
+    ENDPOINT_VEHICLE_CAPABILITIES,
+    ENDPOINT_VEHICLES,
+    ENTERPRISE_ID,
+    LANGUAGE,
+    REGION_CODE,
+    SYSTEM_TYPE,
+    TERMINAL,
+)
+from .helpers import (
+    build_state,
+    calculate_fuel_percent,
+    normalize_phone,
+    redact_vehicle,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+_AUTH_ERROR_CODES = frozenset({"401", "401000", "401001", "401002", "308001", "308002", "308003", "308004"})
+_AUTH_EXPIRY_MARKERS = (
+    "срок действия токена", "токен входа истек", "токен входа истёк",
+    "token expired", "token has expired", "token is expired",
+    "invalid access token", "invalid token", "login expired",
+    "令牌已过期", "登录已过期",
+)
+
+
+def _is_auth_error(code: str, description: str) -> bool:
+    """Recognize explicit session failures, including localized expiry text."""
+    return code in _AUTH_ERROR_CODES or any(
+        marker in description.casefold() for marker in _AUTH_EXPIRY_MARKERS
+    )
 
 
 class GwmRuApiError(HomeAssistantError):
@@ -45,13 +87,27 @@ class GwmRuApiClient:
 
     async def async_login(self) -> None:
         async with self._login_lock:
-            body = {"account": self._phone, "password": self._password, "agreement": [1, 2, 18, 19], "smsCode": None, "msgType": None, "model": "Home Assistant", "type": 1, "deviceId": self._device_id, "appType": 0, "pushToken": "", "country": self._country, "countryCode": self._country_code, "isEncrypt": False}
-            payload = await self._request("POST", ENDPOINT_LOGIN, body=body, with_token=False)
-            data = payload.get("data") or {}
-            token = data.get("accessToken")
-            if not token:
-                raise ConfigEntryAuthFailed("GWM RU login did not return accessToken")
-            self._access_token = str(token)
+            if self._access_token:
+                return
+            await self._async_login_unlocked()
+
+    async def _async_login_unlocked(self) -> None:
+        """Log in while the caller holds the session lock."""
+        body = {"account": self._phone, "password": self._password, "agreement": [1, 2, 18, 19], "smsCode": None, "msgType": None, "model": "Home Assistant", "type": 1, "deviceId": self._device_id, "appType": 0, "pushToken": "", "country": self._country, "countryCode": self._country_code, "isEncrypt": False}
+        payload = await self._request("POST", ENDPOINT_LOGIN, body=body, with_token=False)
+        data = payload.get("data")
+        token = data.get("accessToken") if isinstance(data, dict) else None
+        if not token:
+            raise ConfigEntryAuthFailed("GWM RU login did not return accessToken")
+        self._access_token = str(token)
+
+    async def _async_recover_session(self, sent_token: str | None) -> None:
+        """Reuse a newer session if another request already replaced this one."""
+        async with self._login_lock:
+            if self._access_token and self._access_token != sent_token:
+                return
+            self._access_token = None
+            await self._async_login_unlocked()
 
     async def async_update(self) -> dict[str, Any]:
         """Fetch all vehicles and keep first-vehicle fields for backward compatibility."""
@@ -272,29 +328,37 @@ class GwmRuApiClient:
         query = urlencode(params, doseq=False)
         url = BASE_URL + path + ("?" + query if query else "")
         headers = self._headers(method, path, url, body_json, with_token, vin_header)
+        sent_token = headers.get("accessToken")
         try:
             async with self._session.request(method, url, headers=headers, data=body_json.encode("utf-8") if body is not None else None, timeout=30) as resp:
                 text = await resp.text()
-                resp.raise_for_status()
+                status = getattr(resp, "status", 200)
+                if status != 401:
+                    resp.raise_for_status()
         except (ClientError, TimeoutError) as err:
             raise GwmRuApiError(f"Cannot connect to GWM RU: {err}") from err
         try:
             payload = json.loads(text)
         except json.JSONDecodeError as err:
-            raise GwmRuApiError("Invalid GWM RU JSON response") from err
+            if status != 401:
+                raise GwmRuApiError("Invalid GWM RU JSON response") from err
+            payload = {}
         if not isinstance(payload, dict):
-            raise GwmRuApiError("Invalid GWM RU response structure")
-        code = str(payload.get("code"))
+            if status != 401:
+                raise GwmRuApiError("Invalid GWM RU response structure")
+            payload = {}
+        code = "401" if status == 401 else str(payload.get("code") or "")
         if code == "000000":
             return payload
-        if with_token and retry_auth and code in {"401", "401000", "308001", "308002", "308003"}:
-            self._access_token = None
-            await self.async_login()
+        description = str(payload.get("description") or payload.get("message") or code or "Unknown GWM RU error")
+        auth_error = _is_auth_error(code, description)
+        if with_token and retry_auth and auth_error:
+            _LOGGER.debug("GWM RU session expired; recovering authentication")
+            await self._async_recover_session(sent_token)
             return await self._request(method, path, params=params, body=body, with_token=with_token, vin_header=vin_header, retry_auth=False)
-        description = str(payload.get("description") or payload.get("message") or code)
-        if not with_token:
-            raise ConfigEntryAuthFailed(description)
-        if code in {"401", "401000", "308001", "308002", "308003"}:
+        if not with_token or auth_error:
+            if with_token and self._access_token == sent_token:
+                self._access_token = None
             raise ConfigEntryAuthFailed(description)
         raise GwmRuApiError(description)
 
