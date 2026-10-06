@@ -55,6 +55,10 @@ module("homeassistant.helpers.storage", Store=lambda *args: SimpleNamespace(
 module("homeassistant.helpers.update_coordinator", DataUpdateCoordinator=CoordinatorBoundary,
        UpdateFailed=UpdateFailed)
 device_registry = module("homeassistant.helpers.device_registry", async_get=lambda hass: hass.devices)
+module("aiohttp", ClientError=Exception, ClientSession=object)
+module("voluptuous", Schema=lambda *a, **k: (lambda data: data), Required=lambda key, **k: key,
+       Optional=lambda key, **k: key, All=lambda *a: None, Range=lambda **k: None,
+       Coerce=lambda t: t, In=lambda v: v, ALLOW_EXTRA=True)
 package = module("custom_components.gwm_ru")
 package.__path__ = [str(root / "custom_components/gwm_ru")]
 api = importlib.import_module("custom_components.gwm_ru.api")
@@ -299,6 +303,64 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         session = SimpleNamespace(request=Mock(return_value=RequestContext()))
         with self.assertRaisesRegex(api.GwmRuApiError, "structure"):
             await self.client(session)._request("GET", "/test")
+
+    def _json_session(self, payloads):
+        """Build a session that returns successive JSON bodies with HTTP 200."""
+        queue = list(payloads)
+
+        class RequestContext:
+            def __init__(self, body):
+                self._body = body
+
+            async def __aenter__(self):
+                return SimpleNamespace(
+                    text=AsyncMock(return_value=self._body),
+                    raise_for_status=Mock(),
+                )
+
+            async def __aexit__(self, *args):
+                return False
+
+        def request(*args, **kwargs):
+            if not queue:
+                raise AssertionError("Unexpected extra HTTP request")
+            return RequestContext(queue.pop(0))
+
+        return SimpleNamespace(request=Mock(side_effect=request))
+
+    async def test_russian_token_expiry_without_known_code_relogs_in(self):
+        """Reload-only recovery: expired text with an unknown code must re-login."""
+        item = self.client(self._json_session([
+            '{"code":"999999","description":"Срок действия токена входа истек"}',
+            '{"code":"000000","data":{"accessToken":"fresh-token"}}',
+            '{"code":"000000","data":[{"vin":"VIN-A"}]}',
+        ]))
+        item._access_token = "stale-token"
+        payload = await item._request("GET", "/app-api/api/v1.0/vehicle/acquireVehicles")
+        self.assertEqual(item._access_token, "fresh-token")
+        self.assertEqual(payload["data"][0]["vin"], "VIN-A")
+
+    async def test_auth_retry_uses_existing_fresh_token(self):
+        item = self.client(self._json_session([
+            '{"code":"000000","data":[{"vin":"VIN-A"}]}',
+        ]))
+        item._access_token = "already-fresh"
+        # Simulate another coroutine already replaced the stale token while we waited.
+        await item._async_relogin_after_auth_error("stale-token")
+        self.assertEqual(item._access_token, "already-fresh")
+        payload = await item._request("GET", "/app-api/api/v1.0/vehicle/acquireVehicles")
+        self.assertEqual(payload["data"][0]["vin"], "VIN-A")
+
+    async def test_auth_failure_after_relogin_raises_config_auth(self):
+        item = self.client(self._json_session([
+            '{"code":"401000","description":"Срок действия токена входа истек"}',
+            '{"code":"000000","data":{"accessToken":"fresh-token"}}',
+            '{"code":"401000","description":"Срок действия токена входа истек"}',
+        ]))
+        item._access_token = "stale-token"
+        with self.assertRaises(ConfigEntryAuthFailed):
+            await item._request("GET", "/app-api/api/v1.0/vehicle/acquireVehicles")
+        self.assertEqual(item._access_token, "fresh-token")
 
 
 class TripStorageTests(unittest.IsolatedAsyncioTestCase):
