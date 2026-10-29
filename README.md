@@ -175,3 +175,7 @@ data:
 Основной проект — [MIT](LICENSE). Анимированный пульт и связанные визуальные материалы адаптированы из **StarLine Card** и распространяются под **GPL-3.0-only**. Подробности — в [сторонних уведомлениях](THIRD_PARTY_NOTICES.md) и [лицензиях frontend](custom_components/gwm_ru/frontend).
 
 Проект не связан с GWM, HAVAL, TANK, ORA или WEY и использует неофициальный API.
+
+## Статья
+
+[Haval в Home Assistant: подключение, карточки и удалённые команды](https://volonterski.ru/articles/gwm-ru-home-assistant/) — подробное описание проекта и примеры использования.
